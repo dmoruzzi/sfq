@@ -127,7 +127,10 @@ class SFAuth:
 
     def _is_token_expired(self):
         """Check if the access token has expired."""
-        return time.time() >= self.token_expiration_time
+        try:
+            return time.time() >= float(self.token_expiration_time)
+        except (TypeError, ValueError):
+            return False
 
     def query(self, query, tooling=False):
         """Query Salesforce using SOQL or Tooling API, depending on the `tooling` parameter."""
