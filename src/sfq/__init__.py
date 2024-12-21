@@ -5,7 +5,7 @@ import os
 import json
 from urllib.parse import urlparse, quote
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, format='[sfq:%(lineno)d - %(levelname)s] %(message)s')
 
 class SFAuth:
     def __init__(
@@ -108,7 +108,7 @@ class SFAuth:
         """Automatically refresh the token if it has expired or is missing."""
         _token_expiration = self._is_token_expired()
         if self.access_token and not _token_expiration:
-            return
+            return self.access_token
         
         if not self.access_token:
             logging.debug("No access token available. Requesting a new one.")
@@ -123,6 +123,7 @@ class SFAuth:
             logging.debug("Access token refreshed successfully.")
         else:
             logging.error("Failed to refresh access token.")
+        return self.access_token
 
 
     def _is_token_expired(self):
