@@ -20,7 +20,25 @@ pip install sfq
 
 ## Usage
 
-### Querying Salesforce Data
+### Interactive Querying 
+
+```powershell
+usage: python -m sfq [-a SFDXAUTHURL] [--dry-run] [--disable-fuzzy-completion]
+
+Interactively query Salesforce data with real-time autocompletion.
+
+options:
+  -h, --help            show this help message and exit
+  -a, --sfdxAuthUrl SFDXAUTHURL
+                        Salesforce auth url
+  --dry-run             Print the query without executing it
+  --disable-fuzzy-completion
+                        Disable fuzzy completion
+```
+
+You can run the `sfq` library in interactive mode by passing the `-a` option with the `SFDX_AUTH_URL` argument or by setting the `SFDX_AUTH_URL` environment variable.
+
+### Library Querying
 
 ```python
 from sfq import SFAuth
@@ -39,7 +57,7 @@ print(sf.query("SELECT Id FROM Account LIMIT 5"))
 print(sf.query("SELECT Id, FullName, Metadata FROM SandboxSettings LIMIT 5", tooling=True))
 ```
 
-### Querying from Bash
+### Bash Querying 
 
 You can easily incorporate this into ad-hoc bash scripts or commands:
 
@@ -112,4 +130,4 @@ To use the `sfq` library, you'll need a **client ID** and **refresh token**. The
 ## Notes
 
 - **Authentication**: Make sure your refresh token is kept secure, as it grants access to your Salesforce instance.
-- **Tooling API**: You can set the `tooling=True` argument in the `query` method to access the Salesforce Tooling API for more advanced metadata queries.
+- **Tooling API**: You can set the `tooling=True` argument in the `query` method to access the Salesforce Tooling API for more advanced metadata queries. This is limited to library usage only.

@@ -1,17 +1,21 @@
 [project]
 name = "sfq"
-version = "0.0.4"
+version = "0.0.5"
 description = "Python wrapper for the Salesforce's Query API."
 readme = "README.md"
 authors = [{ name = "David Moruzzi", email = "sfq.pypi@dmoruzi.com" }]
 keywords = ["salesforce", "salesforce query"]
-requires-python = ">=3.9"
-dependencies = []
+requires-python = ">=3.7"
+dependencies = [
+    "prompt-toolkit>=3.0.3",
+]
 
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Intended Audience :: Developers",
   "Topic :: Software Development :: Libraries :: Python Modules",
+  "Programming Language :: Python :: 3.7",
+  "Programming Language :: Python :: 3.8",
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.12",

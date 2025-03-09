@@ -131,7 +131,7 @@ class SFAuth:
         try:
             return time.time() >= float(self.token_expiration_time)
         except (TypeError, ValueError):
-            return False
+            return True
 
     def query(self, query, tooling=False):
         """Query Salesforce using SOQL or Tooling API, depending on the `tooling` parameter."""
