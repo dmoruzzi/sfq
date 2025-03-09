@@ -13,7 +13,7 @@ class SFAuth:
         instance_url,
         client_id,
         refresh_token,
-        api_version="v62.0",
+        api_version="v63.0",
         token_endpoint="/services/oauth2/token",
         access_token=None,
         token_expiration_time=None,
