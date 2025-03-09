@@ -47,9 +47,7 @@ def _interactive_shell(sf: SFAuth, dry_run: bool, disable_fuzzy_completion: bool
         host = sf.instance_url.split("://")[1].split("/")[0]
         conn = http.client.HTTPSConnection(host)
         uri = f"/services/data/{sf.api_version}/sobjects/"
-        token = sf._refresh_token_if_needed()
-        headers = {'Authorization': f'Bearer {token}'}
-        print(f'token: {token}')
+        headers = {'Authorization': f'Bearer {sf._refresh_token_if_needed()}'}
         conn.request("GET", uri, headers=headers)
         response = conn.getresponse()
         
