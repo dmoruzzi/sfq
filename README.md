@@ -95,7 +95,7 @@ To use the `sfq` library, you'll need a **client ID** and **refresh token**. The
      "status": 0,
      "result": {
        "id": "00Daa0000000000000",
-       "apiVersion": "62.0",
+       "apiVersion": "63.0",
        "accessToken": "your-access-token-here",
        "instanceUrl": "https://example-dev-ed.trailblaze.my.salesforce.com",
        "username": "user@example.com",

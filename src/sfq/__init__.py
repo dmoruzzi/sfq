@@ -19,6 +19,7 @@ class SFAuth:
         token_expiration_time=None,
         token_lifetime=15 * 60,
         proxy="auto",
+        user_agent="sfq/0.0.7",
     ):
         """
         Initializes the SFAuth with necessary parameters.
@@ -42,6 +43,7 @@ class SFAuth:
         self.token_expiration_time = token_expiration_time
         self.token_lifetime = token_lifetime
         self._auto_configure_proxy(proxy)
+        self.user_agent = user_agent
 
     def _auto_configure_proxy(self, proxy):
         """
@@ -83,7 +85,7 @@ class SFAuth:
         parsed_url = urlparse(self.instance_url)
         conn = self._create_connection(parsed_url.netloc)
 
-        headers = {"Content-Type": "application/x-www-form-urlencoded"}
+        headers = {"Content-Type": "application/x-www-form-urlencoded", "User-Agent": self.user_agent}
         body = "&".join([f"{key}={quote(str(value))}" for key, value in payload.items()])
 
         try:
@@ -146,7 +148,7 @@ class SFAuth:
         else:
             query_endpoint = f"/services/data/{self.api_version}/query"
 
-        headers = {"Authorization": f"Bearer {self.access_token}"}
+        headers = {"Authorization": f"Bearer {self.access_token}", "User-Agent": self.user_agent}
 
         # Handle special characters in the query
         encoded_query = quote(query)
