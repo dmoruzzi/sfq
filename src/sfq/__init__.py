@@ -70,7 +70,7 @@ class SFAuth:
         access_token: Optional[str] = None,
         token_expiration_time: Optional[float] = None,
         token_lifetime: int = 15 * 60,
-        user_agent: str = "sfq/0.0.8",
+        user_agent: str = "sfq/0.0.9",
         proxy: str = "auto",
     ) -> None:
         """
@@ -84,7 +84,7 @@ class SFAuth:
         :param access_token: The access token for the current session (default is None).
         :param token_expiration_time: The expiration time of the access token (default is None).
         :param token_lifetime: The lifetime of the access token in seconds (default is 15 minutes).
-        :param user_agent: Custom User-Agent string (default is "sfq/0.0.8").
+        :param user_agent: Custom User-Agent string (default is "sfq/0.0.9").
         :param proxy: The proxy configuration, "auto" to use environment (default is "auto").
         """
         self.instance_url = instance_url
