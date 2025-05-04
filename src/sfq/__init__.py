@@ -1,3 +1,4 @@
+import base64
 import http.client
 import json
 import logging
@@ -70,7 +71,7 @@ class SFAuth:
         access_token: Optional[str] = None,
         token_expiration_time: Optional[float] = None,
         token_lifetime: int = 15 * 60,
-        user_agent: str = "sfq/0.0.9",
+        user_agent: str = "sfq/0.0.10",
         proxy: str = "auto",
     ) -> None:
         """
@@ -84,7 +85,7 @@ class SFAuth:
         :param access_token: The access token for the current session (default is None).
         :param token_expiration_time: The expiration time of the access token (default is None).
         :param token_lifetime: The lifetime of the access token in seconds (default is 15 minutes).
-        :param user_agent: Custom User-Agent string (default is "sfq/0.0.9").
+        :param user_agent: Custom User-Agent string (default is "sfq/0.0.10").
         :param proxy: The proxy configuration, "auto" to use environment (default is "auto").
         """
         self.instance_url = instance_url
@@ -139,7 +140,7 @@ class SFAuth:
             logger.trace("Direct connection to %s", netloc)
         return conn
 
-    def _post_token_request(self, payload: Dict[str, str]) -> Optional[Dict[str, Any]]:
+    def _new_token_request(self, payload: Dict[str, str]) -> Optional[Dict[str, Any]]:
         """
         Send a POST request to the Salesforce token endpoint using http.client.
 
@@ -229,7 +230,7 @@ class SFAuth:
 
         logger.trace("Access token expired or missing, refreshing...")
         payload = self._prepare_payload()
-        token_data = self._post_token_request(payload)
+        token_data = self._new_token_request(payload)
 
         if token_data:
             self.access_token = token_data.get("access_token")
@@ -239,7 +240,10 @@ class SFAuth:
                 self.org_id = token_data.get("id").split("/")[4]
                 self.user_id = token_data.get("id").split("/")[5]
                 logger.trace(
-                    "Authenticated as user %s in org %s", self.user_id, self.org_id
+                    "Authenticated as user %s for org %s (%s)",
+                    self.user_id,
+                    self.org_id,
+                    token_data.get("instance_url"),
                 )
             except (IndexError, KeyError):
                 logger.error("Failed to extract org/user IDs from token response.")
@@ -264,16 +268,192 @@ class SFAuth:
             logger.warning("Token expiration check failed. Treating token as expired.")
             return True
 
-    def tooling_query(self, query: str) -> Optional[Dict[str, Any]]:
+    def read_static_resource_name(
+        self, resource_name: str, namespace: Optional[str] = None
+    ) -> Optional[str]:
         """
-        Execute a SOQL query using the Tooling API.
+        Read a static resource for a given name from the Salesforce instance.
 
-        :param query: The SOQL query string.
+        :param resource_name: Name of the static resource to read.
+        :param namespace: Namespace of the static resource to read (default is None).
+        :return: Static resource content or None on failure.
+        """
+        _safe_resource_name = quote(resource_name, safe="")
+        query = f"SELECT Id FROM StaticResource WHERE Name = '{_safe_resource_name}'"
+        if namespace:
+            query += f" AND NamespacePrefix = '{namespace}'"
+        query += " LIMIT 1"
+        _static_resource_id_response = self.query(query)
+
+        if (
+            _static_resource_id_response
+            and _static_resource_id_response.get("records")
+            and len(_static_resource_id_response["records"]) > 0
+        ):
+            return self.read_static_resource_id(
+                _static_resource_id_response["records"][0].get("Id")
+            )
+
+        logger.error(f"Failed to read static resource with name {_safe_resource_name}.")
+        return None
+
+    def read_static_resource_id(self, resource_id: str) -> Optional[str]:
+        """
+        Read a static resource for a given ID from the Salesforce instance.
+
+        :param resource_id: ID of the static resource to read.
+        :return: Static resource content or None on failure.
+        """
+        self._refresh_token_if_needed()
+
+        if not self.access_token:
+            logger.error("No access token available for limits.")
+            return None
+
+        endpoint = f"/services/data/{self.api_version}/sobjects/StaticResource/{resource_id}/Body"
+        headers = {
+            "Authorization": f"Bearer {self.access_token}",
+            "User-Agent": self.user_agent,
+            "Accept": "application/json",
+        }
+
+        parsed_url = urlparse(self.instance_url)
+        conn = self._create_connection(parsed_url.netloc)
+
+        try:
+            logger.trace("Request endpoint: %s", endpoint)
+            logger.trace("Request headers: %s", headers)
+            conn.request("GET", endpoint, headers=headers)
+            response = conn.getresponse()
+            data = response.read().decode("utf-8")
+            self._http_resp_header_logic(response)
+
+            if response.status == 200:
+                logger.debug("Get Static Resource Body API request successful.")
+                logger.trace("Response body: %s", data)
+                return data
+
+            logger.error(
+                "Get Static Resource Body API request failed: %s %s",
+                response.status,
+                response.reason,
+            )
+            logger.debug("Response body: %s", data)
+
+        except Exception as err:
+            logger.exception(
+                "Error during Get Static Resource Body API request: %s", err
+            )
+
+        finally:
+            conn.close()
+
+        return None
+
+    def update_static_resource_name(
+        self, resource_name: str, data: str, namespace: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Update a static resource for a given name in the Salesforce instance.
+
+        :param resource_name: Name of the static resource to update.
+        :param data: Content to update the static resource with.
+        :param namespace: Optional namespace to search for the static resource.
+        :return: Static resource content or None on failure.
+        """
+        safe_resource_name = quote(resource_name, safe="")
+        query = f"SELECT Id FROM StaticResource WHERE Name = '{safe_resource_name}'"
+        if namespace:
+            query += f" AND NamespacePrefix = '{namespace}'"
+        query += " LIMIT 1"
+
+        static_resource_id_response = self.query(query)
+
+        if (
+            static_resource_id_response
+            and static_resource_id_response.get("records")
+            and len(static_resource_id_response["records"]) > 0
+        ):
+            return self.update_static_resource_id(
+                static_resource_id_response["records"][0].get("Id"), data
+            )
+
+        logger.error(
+            f"Failed to update static resource with name {safe_resource_name}."
+        )
+        return None
+
+    def update_static_resource_id(
+        self, resource_id: str, data: str
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Replace the content of a static resource in the Salesforce instance by ID.
+
+        :param resource_id: ID of the static resource to update.
+        :param data: Content to update the static resource with.
         :return: Parsed JSON response or None on failure.
         """
-        return self.query(query, tooling=True)
+        self._refresh_token_if_needed()
+
+        if not self.access_token:
+            logger.error("No access token available for limits.")
+            return None
+
+        payload = {"Body": base64.b64encode(data.encode("utf-8"))}
+
+        endpoint = (
+            f"/services/data/{self.api_version}/sobjects/StaticResource/{resource_id}"
+        )
+        headers = {
+            "Authorization": f"Bearer {self.access_token}",
+            "User-Agent": self.user_agent,
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        }
+
+        parsed_url = urlparse(self.instance_url)
+        conn = self._create_connection(parsed_url.netloc)
+
+        try:
+            logger.trace("Request endpoint: %s", endpoint)
+            logger.trace("Request headers: %s", headers)
+            logger.trace("Request payload: %s", payload)
+            conn.request(
+                "PATCH",
+                endpoint,
+                headers=headers,
+                body=json.dumps(payload, default=lambda x: x.decode("utf-8")),
+            )
+            response = conn.getresponse()
+            data = response.read().decode("utf-8")
+            self._http_resp_header_logic(response)
+
+            if response.status == 200:
+                logger.debug("Patch Static Resource request successful.")
+                logger.trace("Response body: %s", data)
+                return json.loads(data)
+
+            logger.error(
+                "Patch Static Resource API request failed: %s %s",
+                response.status,
+                response.reason,
+            )
+            logger.debug("Response body: %s", data)
+
+        except Exception as err:
+            logger.exception("Error during patch request: %s", err)
+
+        finally:
+            conn.close()
+
+        return None
 
     def limits(self) -> Optional[Dict[str, Any]]:
+        """
+        Execute a GET request to the Salesforce Limits API.
+
+        :return: Parsed JSON response or None on failure.
+        """
         self._refresh_token_if_needed()
 
         if not self.access_token:
@@ -284,7 +464,6 @@ class SFAuth:
         headers = {
             "Authorization": f"Bearer {self.access_token}",
             "User-Agent": self.user_agent,
-            "Content-Type": "application/x-www-form-urlencoded",
             "Accept": "application/json",
         }
 
@@ -304,7 +483,9 @@ class SFAuth:
                 logger.trace("Response body: %s", data)
                 return json.loads(data)
 
-            logger.error("Limits API request failed: %s %s", response.status, response.reason)
+            logger.error(
+                "Limits API request failed: %s %s", response.status, response.reason
+            )
             logger.debug("Response body: %s", data)
 
         except Exception as err:
@@ -338,7 +519,6 @@ class SFAuth:
         headers = {
             "Authorization": f"Bearer {self.access_token}",
             "User-Agent": self.user_agent,
-            "Content-Type": "application/x-www-form-urlencoded",
             "Accept": "application/json",
         }
 
@@ -396,3 +576,12 @@ class SFAuth:
             conn.close()
 
         return None
+
+    def tooling_query(self, query: str) -> Optional[Dict[str, Any]]:
+        """
+        Execute a SOQL query using the Tooling API.
+
+        :param query: The SOQL query string.
+        :return: Parsed JSON response or None on failure.
+        """
+        return self.query(query, tooling=True)
