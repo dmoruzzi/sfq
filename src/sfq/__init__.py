@@ -130,12 +130,8 @@ class SFAuth:
         """
         if self.proxy:
             proxy_url = urlparse(self.proxy)
-            conn_cls = (
-                http.client.HTTPSConnection
-                if proxy_url.scheme != "http"
-                else http.client.HTTPConnection
-            )
-            conn = conn_cls(proxy_url.hostname, proxy_url.port)
+            logger.trace("Using proxy: %s", self.proxy)
+            conn = http.client.HTTPSConnection(proxy_url.hostname, proxy_url.port)
             conn.set_tunnel(netloc)
             logger.trace("Using proxy tunnel to %s", netloc)
         else:
