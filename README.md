@@ -20,24 +20,6 @@ pip install sfq
 
 ## Usage
 
-### Interactive Querying 
-
-```powershell
-usage: python -m sfq [-a SFDXAUTHURL] [--dry-run] [--disable-fuzzy-completion]
-
-Interactively query Salesforce data with real-time autocompletion.
-
-options:
-  -h, --help            show this help message and exit
-  -a, --sfdxAuthUrl SFDXAUTHURL
-                        Salesforce auth url
-  --dry-run             Print the query without executing it
-  --disable-fuzzy-completion
-                        Disable fuzzy completion
-```
-
-You can run the `sfq` library in interactive mode by passing the `-a` option with the `SFDX_AUTH_URL` argument or by setting the `SFDX_AUTH_URL` environment variable.
-
 ### Library Querying
 
 ```python
@@ -127,7 +109,9 @@ To use the `sfq` library, you'll need a **client ID** and **refresh token**. The
    pip install sfq && python -c "from sfq import SFAuth; sf = SFAuth(instance_url='$instanceUrl', client_id='$clientId', refresh_token='$refreshToken'); print(sf.query('$query'))" | jq -r '.records[].Id'
    ```
 
-## Notes
+## Important Considerations
 
-- **Authentication**: Make sure your refresh token is kept secure, as it grants access to your Salesforce instance.
-- **Tooling API**: You can set the `tooling=True` argument in the `query` method to access the Salesforce Tooling API for more advanced metadata queries. This is limited to library usage only.
+- **Security**: Safeguard your refresh token diligently, as it provides access to your Salesforce environment. Avoid sharing or exposing it in unsecured locations.
+- **Efficient Data Retrieval**: The `query` function automatically handles pagination, simplifying record retrieval across large datasets. It's recommended to use the `LIMIT` clause in queries to control the volume of data returned.
+- **Advanced Metadata Queries**: Utilize the `tooling=True` option within the `query` function to access the Salesforce Tooling API. This option is designed for performing complex metadata operations, enhancing your data management capabilities.
+
