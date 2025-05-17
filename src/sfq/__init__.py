@@ -748,7 +748,30 @@ class SFAuth:
                     logger.trace("Composite query full response: %s", data)
                     results = json.loads(data).get("results", [])
                     for i, result in enumerate(results):
-                        batch_results[keys[i]] = result
+                        records = []
+                        if "result" in result and "records" in result["result"]:
+                            records.extend(result["result"]["records"])
+                        # Handle pagination
+                        while not result["result"].get("done", True):
+                            next_url = result["result"].get("nextRecordsUrl")
+                            if next_url:
+                                conn.request("GET", next_url, headers=headers)
+                                response = conn.getresponse()
+                                data = response.read().decode("utf-8")
+                                self._http_resp_header_logic(response)
+                                if response.status == 200:
+                                    next_results = json.loads(data)
+                                    records.extend(next_results.get("records", []))
+                                    result["result"]["done"] = next_results.get("done")
+                                else:
+                                    logger.error(
+                                        "Failed to fetch next records: %s",
+                                        response.reason,
+                                    )
+                                    break
+                            else:
+                                result["result"]["done"] = True
+                        batch_results[keys[i]] = {"records": records}
                         if result.get("statusCode") != 200:
                             logger.error("Query failed for key %s: %s", keys[i], result)
                             logger.error(
