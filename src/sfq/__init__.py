@@ -81,13 +81,14 @@ class SFAuth:
         self,
         instance_url: str,
         client_id: str,
-        refresh_token: str,
+        refresh_token: str, # client_secret & refresh_token will swap positions 2025-AUG-1
+        client_secret: str = "_deprecation_warning",  # mandatory after 2025-AUG-1
         api_version: str = "v63.0",
         token_endpoint: str = "/services/oauth2/token",
         access_token: Optional[str] = None,
         token_expiration_time: Optional[float] = None,
         token_lifetime: int = 15 * 60,
-        user_agent: str = "sfq/0.0.12",
+        user_agent: str = "sfq/0.0.13",
         proxy: str = "auto",
     ) -> None:
         """
@@ -96,16 +97,18 @@ class SFAuth:
         :param instance_url: The Salesforce instance URL.
         :param client_id: The client ID for OAuth.
         :param refresh_token: The refresh token for OAuth.
+        :param client_secret: The client secret for OAuth (default is "_deprecation_warning").
         :param api_version: The Salesforce API version (default is "v63.0").
         :param token_endpoint: The token endpoint (default is "/services/oauth2/token").
         :param access_token: The access token for the current session (default is None).
         :param token_expiration_time: The expiration time of the access token (default is None).
         :param token_lifetime: The lifetime of the access token in seconds (default is 15 minutes).
-        :param user_agent: Custom User-Agent string (default is "sfq/0.0.12").
+        :param user_agent: Custom User-Agent string (default is "sfq/0.0.13").
         :param proxy: The proxy configuration, "auto" to use environment (default is "auto").
         """
-        self.instance_url = instance_url
+        self.instance_url = self._format_instance_url(instance_url)
         self.client_id = client_id
+        self.client_secret = client_secret
         self.refresh_token = refresh_token
         self.api_version = api_version
         self.token_endpoint = token_endpoint
@@ -115,6 +118,26 @@ class SFAuth:
         self.user_agent = user_agent
         self._auto_configure_proxy(proxy)
         self._high_api_usage_threshold = 80
+
+        if self.client_secret == "_deprecation_warning":
+            warnings.warn(
+                "The 'client_secret' parameter will be mandatory and positional arguments will change after 1 August 2025. "
+                "Please ensure explicit argument assignment and 'client_secret' inclusion when initializing the SFAuth object.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+
+            logger.debug(
+                "Will be SFAuth(instance_url, client_id, client_secret, refresh_token) starting 1 August 2025... but please just use named arguments.."
+            )
+
+    def _format_instance_url(self, instance_url) -> str:
+        # check if it begins with https://
+        if instance_url.startswith("https://"):
+            return instance_url
+        if instance_url.startswith("http://"):
+            return instance_url.replace("http://", "https://")
+        return f"https://{instance_url}"
 
     def _auto_configure_proxy(self, proxy: str) -> None:
         """
@@ -128,15 +151,35 @@ class SFAuth:
             self.proxy = proxy
             logger.debug("Using configured proxy: %s", self.proxy)
 
-    def _prepare_payload(self) -> Dict[str, str]:
+    def _prepare_payload(self) -> Dict[str, Optional[str]]:
         """
         Prepare the payload for the token request.
+
+        This method constructs a dictionary containing the necessary parameters
+        for a token request using the refresh token grant type. It includes
+        the client ID, client secret, and refresh token if they are available.
+
+        Returns:
+            Dict[str, Optional[str]]: A dictionary containing the payload for the token request.
         """
-        return {
+        payload = {
             "grant_type": "refresh_token",
             "client_id": self.client_id,
+            "client_secret": self.client_secret,
             "refresh_token": self.refresh_token,
         }
+
+        if self.client_secret == "_deprecation_warning":
+            logger.warning(
+                "The SFQ library is making a breaking change (2025-AUG-1) to require the 'client_secret' parameter to be assigned when initializing the SFAuth object. "
+                "In addition, positional arguments will change. Please ensure explicit argument assignment and 'client_secret' inclusion when initializing the SFAuth object to avoid impact."
+            )
+            payload.pop("client_secret")
+
+        if not self.client_secret:
+            payload.pop("client_secret")
+
+        return payload
 
     def _create_connection(self, netloc: str) -> http.client.HTTPConnection:
         """
@@ -214,27 +257,24 @@ class SFAuth:
         headers_list = [(k, v) for k, v in headers if not v.startswith("BrowserId=")]
         logger.trace("Response headers: %s", headers_list)
         for key, value in headers_list:
-            if key.startswith("Sforce-"):
-                if key == "Sforce-Limit-Info":
-                    current_api_calls = int(value.split("=")[1].split("/")[0])
-                    maximum_api_calls = int(value.split("=")[1].split("/")[1])
-                    usage_percentage = round(
-                        current_api_calls / maximum_api_calls * 100, 2
+            if key == "Sforce-Limit-Info":
+                current_api_calls = int(value.split("=")[1].split("/")[0])
+                maximum_api_calls = int(value.split("=")[1].split("/")[1])
+                usage_percentage = round(current_api_calls / maximum_api_calls * 100, 2)
+                if usage_percentage > self._high_api_usage_threshold:
+                    logger.warning(
+                        "High API usage: %s/%s (%s%%)",
+                        current_api_calls,
+                        maximum_api_calls,
+                        usage_percentage,
                     )
-                    if usage_percentage > self._high_api_usage_threshold:
-                        logger.warning(
-                            "High API usage: %s/%s (%s%%)",
-                            current_api_calls,
-                            maximum_api_calls,
-                            usage_percentage,
-                        )
-                    else:
-                        logger.debug(
-                            "API usage: %s/%s (%s%%)",
-                            current_api_calls,
-                            maximum_api_calls,
-                            usage_percentage,
-                        )
+                else:
+                    logger.debug(
+                        "API usage: %s/%s (%s%%)",
+                        current_api_calls,
+                        maximum_api_calls,
+                        usage_percentage,
+                    )
 
     def _refresh_token_if_needed(self) -> Optional[str]:
         """

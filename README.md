@@ -28,7 +28,8 @@ from sfq import SFAuth
 # Initialize the SFAuth class with authentication details
 sf = SFAuth(
     instance_url="https://example-dev-ed.trailblaze.my.salesforce.com",
-    client_id="PlatformCLI",
+    client_id="your-client-id-here",
+    client_secret="your-client-secret-here",
     refresh_token="your-refresh-token-here"
 )
 
@@ -36,15 +37,54 @@ sf = SFAuth(
 print(sf.query("SELECT Id FROM Account LIMIT 5"))
 
 # Execute a query to fetch Tooling API data
-print(sf.query("SELECT Id, FullName, Metadata FROM SandboxSettings LIMIT 5", tooling=True))
+print(sf.tooling_query("SELECT Id, FullName, Metadata FROM SandboxSettings LIMIT 5"))
 ```
 
-### Bash Querying 
+### sObject Key Prefixes
 
-You can easily incorporate this into ad-hoc bash scripts or commands:
+```python
+# Key prefix via IDs
+print(sf.get_sobject_prefixes())
+>>> {'0Pp': 'AIApplication', '6S9': 'AIApplicationConfig', '9qd': 'AIInsightAction', '9bq': 'AIInsightFeedback', '0T2': 'AIInsightReason', '9qc': 'AIInsightValue', ...}
 
-```bash
-python -c "from sfq import SFAuth; sf = SFAuth(instance_url='$instance_url', client_id='$client_id', refresh_token='$refresh_token'); print(sf.query('$query'))" | jq -r '.records[].Id'
+# Key prefix via names
+print(sf.get_sobject_prefixes(key_type="name"))
+>>> {'AIApplication': '0Pp', 'AIApplicationConfig': '6S9', 'AIInsightAction': '9qd', 'AIInsightFeedback': '9bq', 'AIInsightReason': '0T2', 'AIInsightValue': '9qc', ...}
+```
+
+### Composite Batch Queries
+
+```python
+multiple_queries = {
+    "Recent Users": """
+        SELECT Id, Name,CreatedDate
+        FROM User
+        ORDER BY CreatedDate DESC
+        LIMIT 10""",
+    "Recent Accounts": "SELECT Id, Name, CreatedDate FROM Account ORDER BY CreatedDate DESC LIMIT 10",
+    "Frozen Users": "SELECT Id, UserId FROM UserLogin WHERE IsFrozen = true",  # If exceeds 2000 records, will paginate
+}
+
+batched_response = sf.cquery(multiple_queries)
+
+for subrequest_identifer, subrequest_response in batched_response.items():
+    print(f'"{subrequest_identifer}" returned {subrequest_response["totalSize"]} records')
+>>> "Recent Users" returned 10 records
+>>> "Recent Accounts" returned 10 records
+>>> "Frozen Users" returned 4082 records
+```
+
+### Static Resources
+
+```python
+page = sf.read_static_resource_id('081aj000009jUMXAA2')
+print(f'Initial resource: {page}')
+>>> Initial resource: <h1>It works!</h1>
+sf.update_static_resource_name('HelloWorld', '<h1>Hello World</h1>')
+page = sf.read_static_resource_name('HelloWorld')
+print(f'Updated resource: {page}')
+>>> Updated resource: <h1>Hello World</h1>
+sf.update_static_resource_id('081aj000009jUMXAA2', '<h1>It works!</h1>')
 ```
 
 ## How to Obtain Salesforce Tokens
@@ -64,7 +104,7 @@ To use the `sfq` library, you'll need a **client ID** and **refresh token**. The
    ```
    
 3. **Display Org Details**:  
-   To get the client ID, refresh token, and instance URL, run:
+   To get the client ID, client secret, refresh token, and instance URL, run:
    
    ```bash
    sf org display --target-org int --verbose --json
@@ -78,12 +118,12 @@ To use the `sfq` library, you'll need a **client ID** and **refresh token**. The
      "result": {
        "id": "00Daa0000000000000",
        "apiVersion": "63.0",
-       "accessToken": "your-access-token-here",
+       "accessToken": "00Daa0000000000000!evaU3fYZEWGUrqI5rMtaS8KYbHfeqA7YWzMgKToOB43Jk0kj7LtiWCbJaj4owPFQ7CqpXPAGX1RDCHblfW9t8cNOCNRFng3o",
        "instanceUrl": "https://example-dev-ed.trailblaze.my.salesforce.com",
        "username": "user@example.com",
        "clientId": "PlatformCLI",
        "connectedStatus": "Connected",
-       "sfdxAuthUrl": "force://PlatformCLI::your-refresh-token-here::https://example-dev-ed.trailblaze.my.salesforce.com",
+       "sfdxAuthUrl": "force://PlatformCLI::nwAeSuiRqvRHrkbMmCKvLHasS0vRbh3Cf2RF41WZzmjtThnCwOuDvn9HObcUjKuTExJPqPegIwnLB5aH6GNWYhU@example-dev-ed.trailblaze.my.salesforce.com",
        "alias": "int"
      }
    }
@@ -93,25 +133,31 @@ To use the `sfq` library, you'll need a **client ID** and **refresh token**. The
    The `sfdxAuthUrl` is structured as:
    
    ```
-   force://<client_id>::<refresh_token>::<instance_url>
+   force://<client_id>:<client_secret>:<refresh_token>@<instance_url>
    ```
 
-   You can extract and use the tokens in a bash script like this:
+   This means with the above output sample, you would use the following information:
 
-   ```bash
-   query="SELECT Id FROM User WHERE IsActive = true AND Profile.Name = 'System Administrator'"
+   ```python
+   # This is for illustrative purposes; use environment variables instead
+   client_id = "PlatformCLI"
+   client_secret = ""
+   refresh_token = "nwAeSuiRqvRHrkbMmCKvLHasS0vRbh3Cf2RF41WZzmjtThnCwOuDvn9HObcUjKuTExJPqPegIwnLB5aH6GNWYhU"
+   instance_url = "https://example-dev-ed.trailblaze.my.salesforce.com"
 
-   sfdxAuthUrl=$(sf org display --target-org int --verbose --json | jq -r '.result.sfdxAuthUrl' | sed 's/force:\/\///')
-   clientId=$(echo "$sfdxAuthUrl" | sed 's/::/\n/g' | sed -n '1p')
-   refreshToken=$(echo "$sfdxAuthUrl" | sed 's/::/\n/g' | sed -n '2p')
-   instanceUrl=$(echo "$sfdxAuthUrl" | sed 's/::/\n/g' | sed -n '3p')
+   from sfq import SFAuth
+   sf = SFAuth(
+       instance_url=instance_url,
+       client_id=client_id,
+       client_secret=client_secret,
+       refresh_token=refresh_token,
+   )
 
-   pip install sfq && python -c "from sfq import SFAuth; sf = SFAuth(instance_url='$instanceUrl', client_id='$clientId', refresh_token='$refreshToken'); print(sf.query('$query'))" | jq -r '.records[].Id'
    ```
 
 ## Important Considerations
 
-- **Security**: Safeguard your refresh token diligently, as it provides access to your Salesforce environment. Avoid sharing or exposing it in unsecured locations.
-- **Efficient Data Retrieval**: The `query` function automatically handles pagination, simplifying record retrieval across large datasets. It's recommended to use the `LIMIT` clause in queries to control the volume of data returned.
-- **Advanced Metadata Queries**: Utilize the `tooling=True` option within the `query` function to access the Salesforce Tooling API. This option is designed for performing complex metadata operations, enhancing your data management capabilities.
+- **Security**: Safeguard your client_id, client_secret, and refresh_token diligently, as they provide access to your Salesforce environment. Avoid sharing or exposing them in unsecured locations.
+- **Efficient Data Retrieval**: The `query` and `cquery` function automatically handles pagination, simplifying record retrieval across large datasets. It's recommended to use the `LIMIT` clause in queries to control the volume of data returned.
+- **Advanced Tooling Queries**: Utilize the `tooling_query` function to access the Salesforce Tooling API. This option is designed for performing complex operations, enhancing your data management capabilities.
 
