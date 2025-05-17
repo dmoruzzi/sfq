@@ -5,6 +5,8 @@ import logging
 import os
 import time
 import warnings
+from collections import OrderedDict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from queue import Empty, Queue
 from typing import Any, Dict, Optional
 from urllib.parse import quote, urlparse
@@ -12,8 +14,10 @@ from urllib.parse import quote, urlparse
 TRACE = 5
 logging.addLevelName(TRACE, "TRACE")
 
+
 class ExperimentalWarning(Warning):
     pass
+
 
 def trace(self: logging.Logger, message: str, *args: Any, **kwargs: Any) -> None:
     """Custom TRACE level logging function with redaction."""
@@ -83,7 +87,7 @@ class SFAuth:
         access_token: Optional[str] = None,
         token_expiration_time: Optional[float] = None,
         token_lifetime: int = 15 * 60,
-        user_agent: str = "sfq/0.0.11",
+        user_agent: str = "sfq/0.0.12",
         proxy: str = "auto",
     ) -> None:
         """
@@ -97,7 +101,7 @@ class SFAuth:
         :param access_token: The access token for the current session (default is None).
         :param token_expiration_time: The expiration time of the access token (default is None).
         :param token_lifetime: The lifetime of the access token in seconds (default is 15 minutes).
-        :param user_agent: Custom User-Agent string (default is "sfq/0.0.11").
+        :param user_agent: Custom User-Agent string (default is "sfq/0.0.12").
         :param proxy: The proxy configuration, "auto" to use environment (default is "auto").
         """
         self.instance_url = instance_url
@@ -603,13 +607,107 @@ class SFAuth:
         """
         return self.query(query, tooling=True)
 
-    def _reconnect_with_backoff(self, attempt: int) -> None:
-        wait_time = min(2**attempt, 60)
-        logger.warning(
-            f"Reconnecting after failure, backoff {wait_time}s (attempt {attempt})"
-        )
-        time.sleep(wait_time)
+    def cquery(self, query_dict: dict[str, str], max_workers: int = 10) -> Optional[Dict[str, Any]]:
+        """
+        Execute multiple SOQL queries using the Composite Batch API with threading to reduce network overhead.
+        The function returns a dictionary mapping the original keys to their corresponding batch response.
+        The function requires a dictionary of SOQL queries with keys as logical names (referenceId) and values as SOQL queries.
+        Each query (subrequest) is counted as a unique API request against Salesforce governance limits.
+
+        :param query_dict: A dictionary of SOQL queries with keys as logical names and values as SOQL queries.
+        :param max_workers: The maximum number of threads to spawn for concurrent execution (default is 10).
+        :return: Dict mapping the original keys to their corresponding batch response or None on failure.
+        """
+        if not query_dict:
+            logger.warning("No queries to execute.")
+            return None
+
         self._refresh_token_if_needed()
+
+        if not self.access_token:
+            logger.error("No access token available for query.")
+            return None
+
+        def _execute_batch(queries_batch):
+            endpoint = f"/services/data/{self.api_version}/composite/batch"
+            headers = {
+                "Authorization": f"Bearer {self.access_token}",
+                "User-Agent": self.user_agent,
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+            }
+
+            payload = {
+                "haltOnError": False,
+                "batchRequests": [
+                    {
+                        "method": "GET",
+                        "url": f"/services/data/{self.api_version}/query?q={quote(query)}",
+                    }
+                    for query in queries_batch
+                ],
+            }
+
+            parsed_url = urlparse(self.instance_url)
+            conn = self._create_connection(parsed_url.netloc)
+            batch_results = {}
+
+            try:
+                logger.trace("Request endpoint: %s", endpoint)
+                logger.trace("Request headers: %s", headers)
+                logger.trace("Request payload: %s", json.dumps(payload, indent=2))
+
+                conn.request("POST", endpoint, json.dumps(payload), headers=headers)
+                conn.sock.settimeout(60 * 10)
+                response = conn.getresponse()
+                data = response.read().decode("utf-8")
+                self._http_resp_header_logic(response)
+
+                if response.status == 200:
+                    logger.debug("Composite query successful.")
+                    logger.trace("Composite query full response: %s", data)
+                    results = json.loads(data).get("results", [])
+                    for i, result in enumerate(results):
+                        batch_results[keys[i]] = result
+                        if result.get("statusCode") != 200:
+                            logger.error("Query failed for key %s: %s", keys[i], result)
+                            logger.error(
+                                "Query failed with HTTP status %s (%s)",
+                                result.get("statusCode"),
+                                result.get("statusMessage"),
+                            )
+                            logger.trace("Query response: %s", result)
+                else:
+                    logger.error(
+                        "Composite query failed with HTTP status %s (%s)",
+                        response.status,
+                        response.reason,
+                    )
+                    batch_results[keys[i]] = data
+                    logger.trace("Composite query response: %s", data)
+            except Exception as err:
+                logger.exception("Exception during composite query: %s", err)
+            finally:
+                logger.trace("Closing connection...")
+                conn.close()
+
+            return batch_results
+
+        keys = list(query_dict.keys())
+        results_dict = OrderedDict()
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = []
+            for i in range(0, len(keys), 25):
+                batch_keys = keys[i : i + 25]
+                batch_queries = [query_dict[key] for key in batch_keys]
+                futures.append(executor.submit(_execute_batch, batch_queries))
+
+            for future in as_completed(futures):
+                results_dict.update(future.result())
+
+        logger.trace("Composite query results: %s", results_dict)
+        return results_dict
 
     def _subscribe_topic(
         self,
