@@ -296,9 +296,9 @@ class SFAuth:
         :return: Static resource content or None on failure.
         """
         _safe_resource_name = quote(resource_name, safe="")
-        namespace = quote(namespace, safe="")
         query = f"SELECT Id FROM StaticResource WHERE Name = '{_safe_resource_name}'"
         if namespace:
+            namespace = quote(namespace, safe="")
             query += f" AND NamespacePrefix = '{namespace}'"
         query += " LIMIT 1"
         _static_resource_id_response = self.query(query)
@@ -381,9 +381,9 @@ class SFAuth:
         :return: Static resource content or None on failure.
         """
         safe_resource_name = quote(resource_name, safe="")
-        namespace = quote(namespace, safe="")
         query = f"SELECT Id FROM StaticResource WHERE Name = '{safe_resource_name}'"
         if namespace:
+            namespace = quote(namespace, safe="")
             query += f" AND NamespacePrefix = '{namespace}'"
         query += " LIMIT 1"
 
