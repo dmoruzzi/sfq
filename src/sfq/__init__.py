@@ -771,7 +771,11 @@ class SFAuth:
                                     break
                             else:
                                 result["result"]["done"] = True
-                        batch_results[keys[i]] = {"records": records}
+                        paginated_results = result["result"]
+                        paginated_results["records"] = records
+                        if "nextRecordsUrl" in paginated_results:
+                            del paginated_results["nextRecordsUrl"]
+                        batch_results[keys[i]] = paginated_results
                         if result.get("statusCode") != 200:
                             logger.error("Query failed for key %s: %s", keys[i], result)
                             logger.error(
