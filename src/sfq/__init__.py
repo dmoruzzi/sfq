@@ -8,7 +8,7 @@ import warnings
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from queue import Empty, Queue
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Literal, Optional
 from urllib.parse import quote, urlparse
 
 TRACE = 5
@@ -296,6 +296,7 @@ class SFAuth:
         :return: Static resource content or None on failure.
         """
         _safe_resource_name = quote(resource_name, safe="")
+        namespace = quote(namespace, safe="")
         query = f"SELECT Id FROM StaticResource WHERE Name = '{_safe_resource_name}'"
         if namespace:
             query += f" AND NamespacePrefix = '{namespace}'"
@@ -380,6 +381,7 @@ class SFAuth:
         :return: Static resource content or None on failure.
         """
         safe_resource_name = quote(resource_name, safe="")
+        namespace = quote(namespace, safe="")
         query = f"SELECT Id FROM StaticResource WHERE Name = '{safe_resource_name}'"
         if namespace:
             query += f" AND NamespacePrefix = '{namespace}'"
@@ -607,7 +609,85 @@ class SFAuth:
         """
         return self.query(query, tooling=True)
 
-    def cquery(self, query_dict: dict[str, str], max_workers: int = 10) -> Optional[Dict[str, Any]]:
+    def get_sobject_prefixes(
+        self, key_type: Literal["id", "name"] = "id"
+    ) -> Optional[Dict[str, str]]:
+        """
+        Fetch all key prefixes from the Salesforce instance and map them to sObject names or vice versa.
+
+        :param key_type: The type of key to return. Either 'id' (prefix) or 'name' (sObject).
+        :return: A dictionary mapping key prefixes to sObject names or None on failure.
+        """
+        valid_key_types = {"id", "name"}
+        if key_type not in valid_key_types:
+            logger.error(
+                "Invalid key type: %s, must be one of: %s",
+                key_type,
+                ", ".join(valid_key_types),
+            )
+            return None
+
+        self._refresh_token_if_needed()
+
+        if not self.access_token:
+            logger.error("No access token available for key prefixes.")
+            return None
+
+        endpoint = f"/services/data/{self.api_version}/sobjects/"
+        headers = {
+            "Authorization": f"Bearer {self.access_token}",
+            "User-Agent": self.user_agent,
+            "Accept": "application/json",
+        }
+
+        parsed_url = urlparse(self.instance_url)
+        conn = self._create_connection(parsed_url.netloc)
+        prefixes = {}
+
+        try:
+            logger.trace("Request endpoint: %s", endpoint)
+            logger.trace("Request headers: %s", headers)
+            conn.request("GET", endpoint, headers=headers)
+            response = conn.getresponse()
+            data = response.read().decode("utf-8")
+            self._http_resp_header_logic(response)
+
+            if response.status == 200:
+                logger.debug("Key prefixes API request successful.")
+                logger.trace("Response body: %s", data)
+                for sobject in json.loads(data)["sobjects"]:
+                    key_prefix = sobject.get("keyPrefix")
+                    name = sobject.get("name")
+                    if not key_prefix or not name:
+                        continue
+
+                    if key_type == "id":
+                        prefixes[key_prefix] = name
+                    elif key_type == "name":
+                        prefixes[name] = key_prefix
+
+                logger.debug("Key prefixes: %s", prefixes)
+                return prefixes
+
+            logger.error(
+                "Key prefixes API request failed: %s %s",
+                response.status,
+                response.reason,
+            )
+            logger.debug("Response body: %s", data)
+
+        except Exception as err:
+            logger.exception("Exception during key prefixes API request: %s", err)
+
+        finally:
+            logger.trace("Closing connection...")
+            conn.close()
+
+        return None
+
+    def cquery(
+        self, query_dict: dict[str, str], max_workers: int = 10
+    ) -> Optional[Dict[str, Any]]:
         """
         Execute multiple SOQL queries using the Composite Batch API with threading to reduce network overhead.
         The function returns a dictionary mapping the original keys to their corresponding batch response.
@@ -708,6 +788,13 @@ class SFAuth:
 
         logger.trace("Composite query results: %s", results_dict)
         return results_dict
+
+    def _reconnect_with_backoff(self, attempt: int) -> None:
+        wait_time = min(2**attempt, 60)
+        logger.warning(
+            f"Reconnecting after failure, backoff {wait_time}s (attempt {attempt})"
+        )
+        time.sleep(wait_time)
 
     def _subscribe_topic(
         self,
