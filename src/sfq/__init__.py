@@ -88,7 +88,8 @@ class SFAuth:
         access_token: Optional[str] = None,
         token_expiration_time: Optional[float] = None,
         token_lifetime: int = 15 * 60,
-        user_agent: str = "sfq/0.0.13",
+        user_agent: str = "sfq/0.0.14",
+        sforce_client: str = '_auto',
         proxy: str = "auto",
     ) -> None:
         """
@@ -103,7 +104,8 @@ class SFAuth:
         :param access_token: The access token for the current session (default is None).
         :param token_expiration_time: The expiration time of the access token (default is None).
         :param token_lifetime: The lifetime of the access token in seconds (default is 15 minutes).
-        :param user_agent: Custom User-Agent string (default is "sfq/0.0.13").
+        :param user_agent: Custom User-Agent string (default is "sfq/0.0.14").
+        :param sforce_client: Custom Application Identifier (default is user_agent).
         :param proxy: The proxy configuration, "auto" to use environment (default is "auto").
         """
         self.instance_url = self._format_instance_url(instance_url)
@@ -116,8 +118,12 @@ class SFAuth:
         self.token_expiration_time = token_expiration_time
         self.token_lifetime = token_lifetime
         self.user_agent = user_agent
+        self.sforce_client = sforce_client
         self._auto_configure_proxy(proxy)
         self._high_api_usage_threshold = 80
+
+        if sforce_client == '_auto':
+            self.sforce_client = user_agent
 
         if self.client_secret == "_deprecation_warning":
             warnings.warn(
@@ -212,6 +218,7 @@ class SFAuth:
             "Accept": "application/json",
             "Content-Type": "application/x-www-form-urlencoded",
             "User-Agent": self.user_agent,
+            "Sforce-Call-Options": f"client={self.sforce_client}",
         }
         body = "&".join(f"{key}={quote(str(value))}" for key, value in payload.items())
 
@@ -372,6 +379,7 @@ class SFAuth:
         headers = {
             "Authorization": f"Bearer {self.access_token}",
             "User-Agent": self.user_agent,
+            "Sforce-Call-Options": f"client={self.sforce_client}",
             "Accept": "application/json",
         }
 
@@ -467,6 +475,7 @@ class SFAuth:
         headers = {
             "Authorization": f"Bearer {self.access_token}",
             "User-Agent": self.user_agent,
+            "Sforce-Call-Options": f"client={self.sforce_client}",
             "Content-Type": "application/json",
             "Accept": "application/json",
         }
@@ -525,6 +534,7 @@ class SFAuth:
         headers = {
             "Authorization": f"Bearer {self.access_token}",
             "User-Agent": self.user_agent,
+            "Sforce-Call-Options": f"client={self.sforce_client}",
             "Accept": "application/json",
         }
 
@@ -581,6 +591,7 @@ class SFAuth:
         headers = {
             "Authorization": f"Bearer {self.access_token}",
             "User-Agent": self.user_agent,
+            "Sforce-Call-Options": f"client={self.sforce_client}",
             "Accept": "application/json",
         }
 
@@ -677,6 +688,7 @@ class SFAuth:
         headers = {
             "Authorization": f"Bearer {self.access_token}",
             "User-Agent": self.user_agent,
+            "Sforce-Call-Options": f"client={self.sforce_client}",
             "Accept": "application/json",
         }
 
@@ -753,6 +765,7 @@ class SFAuth:
             headers = {
                 "Authorization": f"Bearer {self.access_token}",
                 "User-Agent": self.user_agent,
+            "Sforce-Call-Options": f"client={self.sforce_client}",
                 "Accept": "application/json",
                 "Content-Type": "application/json",
             }
@@ -896,6 +909,7 @@ class SFAuth:
             "Content-Type": "application/json",
             "Accept": "application/json",
             "User-Agent": self.user_agent,
+            "Sforce-Call-Options": f"client={self.sforce_client}",
         }
 
         parsed_url = urlparse(self.instance_url)
