@@ -7,8 +7,7 @@ import time
 import warnings
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from queue import Empty, Queue
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Dict, Literal, Optional, List, Tuple
 from urllib.parse import quote, urlparse
 
 TRACE = 5
@@ -31,6 +30,7 @@ def trace(self: logging.Logger, message: str, *args: Any, **kwargs: Any) -> None
             "set-cookie",
             "cookie",
             "refresh_token",
+            "client_secret",
         ]
         if isinstance(data, dict):
             return {
@@ -81,15 +81,15 @@ class SFAuth:
         self,
         instance_url: str,
         client_id: str,
-        refresh_token: str, # client_secret & refresh_token will swap positions 2025-AUG-1
+        refresh_token: str,  # client_secret & refresh_token will swap positions 2025-AUG-1
         client_secret: str = "_deprecation_warning",  # mandatory after 2025-AUG-1
         api_version: str = "v63.0",
         token_endpoint: str = "/services/oauth2/token",
         access_token: Optional[str] = None,
         token_expiration_time: Optional[float] = None,
         token_lifetime: int = 15 * 60,
-        user_agent: str = "sfq/0.0.14",
-        sforce_client: str = '_auto',
+        user_agent: str = "sfq/0.0.15",
+        sforce_client: str = "_auto",
         proxy: str = "auto",
     ) -> None:
         """
@@ -104,7 +104,7 @@ class SFAuth:
         :param access_token: The access token for the current session (default is None).
         :param token_expiration_time: The expiration time of the access token (default is None).
         :param token_lifetime: The lifetime of the access token in seconds (default is 15 minutes).
-        :param user_agent: Custom User-Agent string (default is "sfq/0.0.14").
+        :param user_agent: Custom User-Agent string (default is "sfq/0.0.15").
         :param sforce_client: Custom Application Identifier (default is user_agent).
         :param proxy: The proxy configuration, "auto" to use environment (default is "auto").
         """
@@ -122,7 +122,7 @@ class SFAuth:
         self._auto_configure_proxy(proxy)
         self._high_api_usage_threshold = 80
 
-        if sforce_client == '_auto':
+        if sforce_client == "_auto":
             self.sforce_client = user_agent
 
         if self.client_secret == "_deprecation_warning":
@@ -138,7 +138,6 @@ class SFAuth:
             )
 
     def _format_instance_url(self, instance_url) -> str:
-        # check if it begins with https://
         if instance_url.startswith("https://"):
             return instance_url
         if instance_url.startswith("http://"):
@@ -205,48 +204,72 @@ class SFAuth:
             logger.trace("Direct connection to %s", netloc)
         return conn
 
-    def _new_token_request(self, payload: Dict[str, str]) -> Optional[Dict[str, Any]]:
+    def _send_request(
+        self,
+        method: str,
+        endpoint: str,
+        headers: Dict[str, str],
+        body: Optional[str] = None,
+        timeout: Optional[int] = None,
+    ) -> Tuple[Optional[int], Optional[str]]:
         """
-        Send a POST request to the Salesforce token endpoint using http.client.
+        Unified request method with built-in logging and error handling.
 
-        :param payload: Dictionary of form-encoded OAuth parameters.
-        :return: Parsed JSON response if successful, otherwise None.
+        :param method: HTTP method to use.
+        :param endpoint: Target API endpoint.
+        :param headers: HTTP headers.
+        :param body: Optional request body.
+        :param timeout: Optional timeout in seconds.
+        :return: Tuple of HTTP status code and response body as a string.
         """
         parsed_url = urlparse(self.instance_url)
         conn = self._create_connection(parsed_url.netloc)
-        headers = {
-            "Accept": "application/json",
-            "Content-Type": "application/x-www-form-urlencoded",
-            "User-Agent": self.user_agent,
-            "Sforce-Call-Options": f"client={self.sforce_client}",
-        }
-        body = "&".join(f"{key}={quote(str(value))}" for key, value in payload.items())
 
         try:
-            logger.trace("Request endpoint: %s", self.token_endpoint)
-            logger.trace("Request body: %s", body)
+            logger.trace("Request method: %s", method)
+            logger.trace("Request endpoint: %s", endpoint)
             logger.trace("Request headers: %s", headers)
-            conn.request("POST", self.token_endpoint, body, headers)
+            if body:
+                logger.trace("Request body: %s", body)
+
+            conn.request(method, endpoint, body=body, headers=headers)
             response = conn.getresponse()
-            data = response.read().decode("utf-8")
             self._http_resp_header_logic(response)
 
-            if response.status == 200:
-                logger.trace("Token refresh successful.")
-                logger.trace("Response body: %s", data)
-                return json.loads(data)
-
-            logger.error(
-                "Token refresh failed: %s %s", response.status, response.reason
-            )
-            logger.debug("Response body: %s", data)
+            data = response.read().decode("utf-8")
+            logger.trace("Response status: %s", response.status)
+            logger.trace("Response body: %s", data)
+            return response.status, data
 
         except Exception as err:
-            logger.exception("Error during token request: %s", err)
+            logger.exception("HTTP request failed: %s", err)
+            return None, None
 
         finally:
-            logger.trace("Closing connection.")
+            logger.trace("Closing connection...")
             conn.close()
+
+    def _new_token_request(self, payload: Dict[str, str]) -> Optional[Dict[str, Any]]:
+        """
+        Perform a new token request using the provided payload.
+
+        :param payload: Payload for the token request.
+        :return: Parsed JSON response or None on failure.
+        """
+        headers = self._get_common_headers()
+        headers["Content-Type"] = "application/x-www-form-urlencoded"
+        del headers["Authorization"]
+
+        body = "&".join(f"{key}={quote(str(value))}" for key, value in payload.items())
+        status, data = self._send_request("POST", self.token_endpoint, headers, body)
+
+        if status == 200:
+            logger.trace("Token refresh successful.")
+            return json.loads(data)
+
+        if status:
+            logger.error("Token refresh failed: %s", status)
+            logger.debug("Response body: %s", data)
 
         return None
 
@@ -320,6 +343,26 @@ class SFAuth:
         logger.error("Failed to obtain access token.")
         return None
 
+    def _get_common_headers(self) -> Dict[str, str]:
+        """
+        Generate common headers for API requests.
+
+        :return: A dictionary of common headers.
+        """
+        if not self.access_token and self.token_expiration_time is None:
+            self.token_expiration_time = int(time.time())
+            self._refresh_token_if_needed()
+        
+        return {
+            "Authorization": f"Bearer {self.access_token}",
+            "User-Agent": self.user_agent,
+            "Sforce-Call-Options": f"client={self.sforce_client}",
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+        }
+
+    
+
     def _is_token_expired(self) -> bool:
         """
         Check if the access token has expired.
@@ -369,52 +412,15 @@ class SFAuth:
         :param resource_id: ID of the static resource to read.
         :return: Static resource content or None on failure.
         """
-        self._refresh_token_if_needed()
-
-        if not self.access_token:
-            logger.error("No access token available for limits.")
-            return None
-
         endpoint = f"/services/data/{self.api_version}/sobjects/StaticResource/{resource_id}/Body"
-        headers = {
-            "Authorization": f"Bearer {self.access_token}",
-            "User-Agent": self.user_agent,
-            "Sforce-Call-Options": f"client={self.sforce_client}",
-            "Accept": "application/json",
-        }
+        headers = self._get_common_headers()
+        status, data = self._send_request("GET", endpoint, headers)
 
-        parsed_url = urlparse(self.instance_url)
-        conn = self._create_connection(parsed_url.netloc)
+        if status == 200:
+            logger.debug("Static resource fetched successfully.")
+            return data
 
-        try:
-            logger.trace("Request endpoint: %s", endpoint)
-            logger.trace("Request headers: %s", headers)
-            conn.request("GET", endpoint, headers=headers)
-            response = conn.getresponse()
-            data = response.read().decode("utf-8")
-            self._http_resp_header_logic(response)
-
-            if response.status == 200:
-                logger.debug("Get Static Resource Body API request successful.")
-                logger.trace("Response body: %s", data)
-                return data
-
-            logger.error(
-                "Get Static Resource Body API request failed: %s %s",
-                response.status,
-                response.reason,
-            )
-            logger.debug("Response body: %s", data)
-
-        except Exception as err:
-            logger.exception(
-                "Error during Get Static Resource Body API request: %s", err
-            )
-
-        finally:
-            logger.trace("Closing connection...")
-            conn.close()
-
+        logger.error("Failed to fetch static resource: %s", status)
         return None
 
     def update_static_resource_name(
@@ -461,111 +467,48 @@ class SFAuth:
         :param data: Content to update the static resource with.
         :return: Parsed JSON response or None on failure.
         """
-        self._refresh_token_if_needed()
-
-        if not self.access_token:
-            logger.error("No access token available for limits.")
-            return None
-
-        payload = {"Body": base64.b64encode(data.encode("utf-8"))}
+        payload = {"Body": base64.b64encode(data.encode("utf-8")).decode("utf-8")}
 
         endpoint = (
             f"/services/data/{self.api_version}/sobjects/StaticResource/{resource_id}"
         )
-        headers = {
-            "Authorization": f"Bearer {self.access_token}",
-            "User-Agent": self.user_agent,
-            "Sforce-Call-Options": f"client={self.sforce_client}",
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-        }
+        headers = self._get_common_headers()
 
-        parsed_url = urlparse(self.instance_url)
-        conn = self._create_connection(parsed_url.netloc)
+        status_code, response_data = self._send_request(
+            method="PATCH",
+            endpoint=endpoint,
+            headers=headers,
+            body=json.dumps(payload),
+        )
 
-        try:
-            logger.trace("Request endpoint: %s", endpoint)
-            logger.trace("Request headers: %s", headers)
-            logger.trace("Request payload: %s", payload)
-            conn.request(
-                "PATCH",
-                endpoint,
-                headers=headers,
-                body=json.dumps(payload, default=lambda x: x.decode("utf-8")),
-            )
-            response = conn.getresponse()
-            data = response.read().decode("utf-8")
-            self._http_resp_header_logic(response)
+        if status_code == 200:
+            logger.debug("Patch Static Resource request successful.")
+            return json.loads(response_data)
 
-            if response.status == 200:
-                logger.debug("Patch Static Resource request successful.")
-                logger.trace("Response body: %s", data)
-                return json.loads(data)
-
-            logger.error(
-                "Patch Static Resource API request failed: %s %s",
-                response.status,
-                response.reason,
-            )
-            logger.debug("Response body: %s", data)
-
-        except Exception as err:
-            logger.exception("Error during patch request: %s", err)
-
-        finally:
-            logger.trace("Closing connection.")
-            conn.close()
+        logger.error(
+            "Patch Static Resource API request failed: %s",
+            status_code,
+        )
+        logger.debug("Response body: %s", response_data)
 
         return None
 
     def limits(self) -> Optional[Dict[str, Any]]:
         """
-        Execute a GET request to the Salesforce Limits API.
+        Fetch the current limits for the Salesforce instance.
 
         :return: Parsed JSON response or None on failure.
         """
-        self._refresh_token_if_needed()
-
-        if not self.access_token:
-            logger.error("No access token available for limits.")
-            return None
-
         endpoint = f"/services/data/{self.api_version}/limits"
-        headers = {
-            "Authorization": f"Bearer {self.access_token}",
-            "User-Agent": self.user_agent,
-            "Sforce-Call-Options": f"client={self.sforce_client}",
-            "Accept": "application/json",
-        }
+        headers = self._get_common_headers()
 
-        parsed_url = urlparse(self.instance_url)
-        conn = self._create_connection(parsed_url.netloc)
+        status, data = self._send_request("GET", endpoint, headers)
 
-        try:
-            logger.trace("Request endpoint: %s", endpoint)
-            logger.trace("Request headers: %s", headers)
-            conn.request("GET", endpoint, headers=headers)
-            response = conn.getresponse()
-            data = response.read().decode("utf-8")
-            self._http_resp_header_logic(response)
+        if status == 200:
+            logger.debug("Limits fetched successfully.")
+            return json.loads(data)
 
-            if response.status == 200:
-                logger.debug("Limits API request successful.")
-                logger.trace("Response body: %s", data)
-                return json.loads(data)
-
-            logger.error(
-                "Limits API request failed: %s %s", response.status, response.reason
-            )
-            logger.debug("Response body: %s", data)
-
-        except Exception as err:
-            logger.exception("Error during limits request: %s", err)
-
-        finally:
-            logger.debug("Closing connection...")
-            conn.close()
-
+        logger.error("Failed to fetch limits: %s", status)
         return None
 
     def query(self, query: str, tooling: bool = False) -> Optional[Dict[str, Any]]:
@@ -576,39 +519,27 @@ class SFAuth:
         :param tooling: If True, use the Tooling API endpoint.
         :return: Parsed JSON response or None on failure.
         """
-        self._refresh_token_if_needed()
-
-        if not self.access_token:
-            logger.error("No access token available for query.")
-            return None
-
         endpoint = f"/services/data/{self.api_version}/"
         endpoint += "tooling/query" if tooling else "query"
         query_string = f"?q={quote(query)}"
-
         endpoint += query_string
+        headers = self._get_common_headers()
 
-        headers = {
-            "Authorization": f"Bearer {self.access_token}",
-            "User-Agent": self.user_agent,
-            "Sforce-Call-Options": f"client={self.sforce_client}",
-            "Accept": "application/json",
-        }
-
-        parsed_url = urlparse(self.instance_url)
-        conn = self._create_connection(parsed_url.netloc)
+        paginated_results = {"totalSize": 0, "done": False, "records": []}
 
         try:
-            paginated_results = {"totalSize": 0, "done": False, "records": []}
             while True:
                 logger.trace("Request endpoint: %s", endpoint)
                 logger.trace("Request headers: %s", headers)
-                conn.request("GET", endpoint, headers=headers)
-                response = conn.getresponse()
-                data = response.read().decode("utf-8")
-                self._http_resp_header_logic(response)
+                headers = self._get_common_headers()  # handle refresh token
 
-                if response.status == 200:
+                status_code, data = self._send_request(
+                    method="GET",
+                    endpoint=endpoint,
+                    headers=headers,
+                )
+
+                if status_code == 200:
                     current_results = json.loads(data)
                     paginated_results["records"].extend(current_results["records"])
                     query_done = current_results.get("done")
@@ -633,9 +564,8 @@ class SFAuth:
                 else:
                     logger.debug("Query failed: %r", query)
                     logger.error(
-                        "Query failed with HTTP status %s (%s)",
-                        response.status,
-                        response.reason,
+                        "Query failed with HTTP status %s",
+                        status_code,
                     )
                     logger.debug("Query response: %s", data)
                     break
@@ -644,10 +574,6 @@ class SFAuth:
 
         except Exception as err:
             logger.exception("Exception during query: %s", err)
-
-        finally:
-            logger.trace("Closing connection...")
-            conn.close()
 
         return None
 
@@ -678,33 +604,22 @@ class SFAuth:
             )
             return None
 
-        self._refresh_token_if_needed()
-
-        if not self.access_token:
-            logger.error("No access token available for key prefixes.")
-            return None
-
         endpoint = f"/services/data/{self.api_version}/sobjects/"
-        headers = {
-            "Authorization": f"Bearer {self.access_token}",
-            "User-Agent": self.user_agent,
-            "Sforce-Call-Options": f"client={self.sforce_client}",
-            "Accept": "application/json",
-        }
+        headers = self._get_common_headers()
 
-        parsed_url = urlparse(self.instance_url)
-        conn = self._create_connection(parsed_url.netloc)
         prefixes = {}
 
         try:
             logger.trace("Request endpoint: %s", endpoint)
             logger.trace("Request headers: %s", headers)
-            conn.request("GET", endpoint, headers=headers)
-            response = conn.getresponse()
-            data = response.read().decode("utf-8")
-            self._http_resp_header_logic(response)
 
-            if response.status == 200:
+            status_code, data = self._send_request(
+                method="GET",
+                endpoint=endpoint,
+                headers=headers,
+            )
+
+            if status_code == 200:
                 logger.debug("Key prefixes API request successful.")
                 logger.trace("Response body: %s", data)
                 for sobject in json.loads(data)["sobjects"]:
@@ -722,18 +637,13 @@ class SFAuth:
                 return prefixes
 
             logger.error(
-                "Key prefixes API request failed: %s %s",
-                response.status,
-                response.reason,
+                "Key prefixes API request failed: %s",
+                status_code,
             )
             logger.debug("Response body: %s", data)
 
         except Exception as err:
             logger.exception("Exception during key prefixes API request: %s", err)
-
-        finally:
-            logger.trace("Closing connection...")
-            conn.close()
 
         return None
 
@@ -754,21 +664,9 @@ class SFAuth:
             logger.warning("No queries to execute.")
             return None
 
-        self._refresh_token_if_needed()
-
-        if not self.access_token:
-            logger.error("No access token available for query.")
-            return None
-
         def _execute_batch(queries_batch):
             endpoint = f"/services/data/{self.api_version}/composite/batch"
-            headers = {
-                "Authorization": f"Bearer {self.access_token}",
-                "User-Agent": self.user_agent,
-            "Sforce-Call-Options": f"client={self.sforce_client}",
-                "Accept": "application/json",
-                "Content-Type": "application/json",
-            }
+            headers = self._get_common_headers()
 
             payload = {
                 "haltOnError": False,
@@ -781,75 +679,65 @@ class SFAuth:
                 ],
             }
 
-            parsed_url = urlparse(self.instance_url)
-            conn = self._create_connection(parsed_url.netloc)
+            status_code, data = self._send_request(
+                method="POST",
+                endpoint=endpoint,
+                headers=headers,
+                body=json.dumps(payload),
+            )
+
             batch_results = {}
-
-            try:
-                logger.trace("Request endpoint: %s", endpoint)
-                logger.trace("Request headers: %s", headers)
-                logger.trace("Request payload: %s", json.dumps(payload, indent=2))
-
-                conn.request("POST", endpoint, json.dumps(payload), headers=headers)
-                conn.sock.settimeout(60 * 10)
-                response = conn.getresponse()
-                data = response.read().decode("utf-8")
-                self._http_resp_header_logic(response)
-
-                if response.status == 200:
-                    logger.debug("Composite query successful.")
-                    logger.trace("Composite query full response: %s", data)
-                    results = json.loads(data).get("results", [])
-                    for i, result in enumerate(results):
-                        records = []
-                        if "result" in result and "records" in result["result"]:
-                            records.extend(result["result"]["records"])
-                        # Handle pagination
-                        while not result["result"].get("done", True):
-                            next_url = result["result"].get("nextRecordsUrl")
-                            if next_url:
-                                conn.request("GET", next_url, headers=headers)
-                                response = conn.getresponse()
-                                data = response.read().decode("utf-8")
-                                self._http_resp_header_logic(response)
-                                if response.status == 200:
-                                    next_results = json.loads(data)
-                                    records.extend(next_results.get("records", []))
-                                    result["result"]["done"] = next_results.get("done")
-                                else:
-                                    logger.error(
-                                        "Failed to fetch next records: %s",
-                                        response.reason,
-                                    )
-                                    break
-                            else:
-                                result["result"]["done"] = True
-                        paginated_results = result["result"]
-                        paginated_results["records"] = records
-                        if "nextRecordsUrl" in paginated_results:
-                            del paginated_results["nextRecordsUrl"]
-                        batch_results[keys[i]] = paginated_results
-                        if result.get("statusCode") != 200:
-                            logger.error("Query failed for key %s: %s", keys[i], result)
-                            logger.error(
-                                "Query failed with HTTP status %s (%s)",
-                                result.get("statusCode"),
-                                result.get("statusMessage"),
+            if status_code == 200:
+                logger.debug("Composite query successful.")
+                logger.trace("Composite query full response: %s", data)
+                results = json.loads(data).get("results", [])
+                for i, result in enumerate(results):
+                    records = []
+                    if "result" in result and "records" in result["result"]:
+                        records.extend(result["result"]["records"])
+                    # Handle pagination
+                    while not result["result"].get("done", True):
+                        headers = self._get_common_headers()  # handles token refresh
+                        next_url = result["result"].get("nextRecordsUrl")
+                        if next_url:
+                            status_code, next_data = self._send_request(
+                                method="GET",
+                                endpoint=next_url,
+                                headers=headers,
                             )
-                            logger.trace("Query response: %s", result)
-                else:
-                    logger.error(
-                        "Composite query failed with HTTP status %s (%s)",
-                        response.status,
-                        response.reason,
-                    )
-                    batch_results[keys[i]] = data
-                    logger.trace("Composite query response: %s", data)
-            except Exception as err:
-                logger.exception("Exception during composite query: %s", err)
-            finally:
-                logger.trace("Closing connection...")
-                conn.close()
+                            if status_code == 200:
+                                next_results = json.loads(next_data)
+                                records.extend(next_results.get("records", []))
+                                result["result"]["done"] = next_results.get("done")
+                            else:
+                                logger.error(
+                                    "Failed to fetch next records: %s",
+                                    next_data,
+                                )
+                                break
+                        else:
+                            result["result"]["done"] = True
+                    paginated_results = result["result"]
+                    paginated_results["records"] = records
+                    if "nextRecordsUrl" in paginated_results:
+                        del paginated_results["nextRecordsUrl"]
+                    batch_results[keys[i]] = paginated_results
+                    if result.get("statusCode") != 200:
+                        logger.error("Query failed for key %s: %s", keys[i], result)
+                        logger.error(
+                            "Query failed with HTTP status %s (%s)",
+                            result.get("statusCode"),
+                            result.get("statusMessage"),
+                        )
+                        logger.trace("Query response: %s", result)
+            else:
+                logger.error(
+                    "Composite query failed with HTTP status %s (%s)",
+                    status_code,
+                    data,
+                )
+                batch_results[keys[i]] = data
+                logger.trace("Composite query response: %s", data)
 
             return batch_results
 
@@ -858,8 +746,9 @@ class SFAuth:
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = []
-            for i in range(0, len(keys), 25):
-                batch_keys = keys[i : i + 25]
+            BATCH_SIZE = 25
+            for i in range(0, len(keys), BATCH_SIZE):
+                batch_keys = keys[i : i + BATCH_SIZE]
                 batch_queries = [query_dict[key] for key in batch_keys]
                 futures.append(executor.submit(_execute_batch, batch_queries))
 
@@ -868,230 +757,3 @@ class SFAuth:
 
         logger.trace("Composite query results: %s", results_dict)
         return results_dict
-
-    def _reconnect_with_backoff(self, attempt: int) -> None:
-        wait_time = min(2**attempt, 60)
-        logger.warning(
-            f"Reconnecting after failure, backoff {wait_time}s (attempt {attempt})"
-        )
-        time.sleep(wait_time)
-
-    def _subscribe_topic(
-        self,
-        topic: str,
-        queue_timeout: int = 90,
-        max_runtime: Optional[int] = None,
-    ):
-        """
-        Yields events from a subscribed Salesforce CometD topic.
-
-        :param topic: Topic to subscribe to, e.g. '/event/MyEvent__e'
-        :param queue_timeout: Seconds to wait for a message before logging heartbeat
-        :param max_runtime: Max total time to listen in seconds (None = unlimited)
-        """
-        warnings.warn(
-            "The _subscribe_topic method is experimental and subject to change in future versions.",
-            ExperimentalWarning,
-            stacklevel=2,
-        )
-
-        self._refresh_token_if_needed()
-        self._msg_count: int = 0
-
-        if not self.access_token:
-            logger.error("No access token available for event stream.")
-            return
-
-        start_time = time.time()
-        message_queue = Queue()
-        headers = {
-            "Authorization": f"Bearer {self.access_token}",
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-            "User-Agent": self.user_agent,
-            "Sforce-Call-Options": f"client={self.sforce_client}",
-        }
-
-        parsed_url = urlparse(self.instance_url)
-        conn = self._create_connection(parsed_url.netloc)
-        _API_VERSION = str(self.api_version).removeprefix("v")
-        client_id = str()
-
-        try:
-            logger.trace("Starting handshake with Salesforce CometD server.")
-            handshake_payload = json.dumps(
-                {
-                    "id": str(self._msg_count + 1),
-                    "version": "1.0",
-                    "minimumVersion": "1.0",
-                    "channel": "/meta/handshake",
-                    "supportedConnectionTypes": ["long-polling"],
-                    "advice": {"timeout": 60000, "interval": 0},
-                }
-            )
-            conn.request(
-                "POST",
-                f"/cometd/{_API_VERSION}/meta/handshake",
-                headers=headers,
-                body=handshake_payload,
-            )
-            response = conn.getresponse()
-            self._http_resp_header_logic(response)
-
-            logger.trace("Received handshake response.")
-            for name, value in response.getheaders():
-                if name.lower() == "set-cookie" and "BAYEUX_BROWSER=" in value:
-                    _bayeux_browser_cookie = value.split("BAYEUX_BROWSER=")[1].split(
-                        ";"
-                    )[0]
-                    headers["Cookie"] = f"BAYEUX_BROWSER={_bayeux_browser_cookie}"
-                    break
-
-            data = json.loads(response.read().decode("utf-8"))
-            if not data or not data[0].get("successful"):
-                logger.error("Handshake failed: %s", data)
-                return
-
-            client_id = data[0]["clientId"]
-            logger.trace(f"Handshake successful, client ID: {client_id}")
-
-            logger.trace(f"Subscribing to topic: {topic}")
-            subscribe_message = {
-                "channel": "/meta/subscribe",
-                "clientId": client_id,
-                "subscription": topic,
-                "id": str(self._msg_count + 1),
-            }
-            conn.request(
-                "POST",
-                f"/cometd/{_API_VERSION}/meta/subscribe",
-                headers=headers,
-                body=json.dumps(subscribe_message),
-            )
-            response = conn.getresponse()
-            self._http_resp_header_logic(response)
-
-            sub_response = json.loads(response.read().decode("utf-8"))
-            if not sub_response or not sub_response[0].get("successful"):
-                logger.error("Subscription failed: %s", sub_response)
-                return
-
-            logger.info(f"Successfully subscribed to topic: {topic}")
-            logger.trace("Entering event polling loop.")
-
-            try:
-                while True:
-                    if max_runtime and (time.time() - start_time > max_runtime):
-                        logger.info(
-                            f"Disconnecting after max_runtime={max_runtime} seconds"
-                        )
-                        break
-
-                    logger.trace("Sending connection message.")
-                    connect_payload = json.dumps(
-                        [
-                            {
-                                "channel": "/meta/connect",
-                                "clientId": client_id,
-                                "connectionType": "long-polling",
-                                "id": str(self._msg_count + 1),
-                            }
-                        ]
-                    )
-
-                    max_retries = 5
-                    attempt = 0
-
-                    while attempt < max_retries:
-                        try:
-                            conn.request(
-                                "POST",
-                                f"/cometd/{_API_VERSION}/meta/connect",
-                                headers=headers,
-                                body=connect_payload,
-                            )
-                            response = conn.getresponse()
-                            self._http_resp_header_logic(response)
-                            self._msg_count += 1
-
-                            events = json.loads(response.read().decode("utf-8"))
-                            for event in events:
-                                if event.get("channel") == topic and "data" in event:
-                                    logger.trace(
-                                        f"Event received for topic {topic}, data: {event['data']}"
-                                    )
-                                    message_queue.put(event)
-                            break
-                        except (
-                            http.client.RemoteDisconnected,
-                            ConnectionResetError,
-                            TimeoutError,
-                            http.client.BadStatusLine,
-                            http.client.CannotSendRequest,
-                            ConnectionAbortedError,
-                            ConnectionRefusedError,
-                            ConnectionError,
-                        ) as e:
-                            logger.warning(
-                                f"Connection error (attempt {attempt + 1}): {e}"
-                            )
-                            conn.close()
-                            conn = self._create_connection(parsed_url.netloc)
-                            self._reconnect_with_backoff(attempt)
-                            attempt += 1
-                        except Exception as e:
-                            logger.exception(
-                                f"Connection error (attempt {attempt + 1}): {e}"
-                            )
-                            break
-                    else:
-                        logger.error("Max retries reached. Exiting event stream.")
-                        break
-
-                    while True:
-                        try:
-                            msg = message_queue.get(timeout=queue_timeout, block=True)
-                            yield msg
-                        except Empty:
-                            logger.debug(
-                                f"Heartbeat: no message in last {queue_timeout} seconds"
-                            )
-                            break
-            except KeyboardInterrupt:
-                logger.info("Received keyboard interrupt, disconnecting...")
-
-            except Exception as e:
-                logger.exception(f"Polling error: {e}")
-
-        finally:
-            if client_id:
-                try:
-                    logger.trace(
-                        f"Disconnecting from server with client ID: {client_id}"
-                    )
-                    disconnect_payload = json.dumps(
-                        [
-                            {
-                                "channel": "/meta/disconnect",
-                                "clientId": client_id,
-                                "id": str(self._msg_count + 1),
-                            }
-                        ]
-                    )
-                    conn.request(
-                        "POST",
-                        f"/cometd/{_API_VERSION}/meta/disconnect",
-                        headers=headers,
-                        body=disconnect_payload,
-                    )
-                    response = conn.getresponse()
-                    self._http_resp_header_logic(response)
-                    _ = response.read()
-                    logger.trace("Disconnected successfully.")
-                except Exception as e:
-                    logger.warning(f"Exception during disconnect: {e}")
-            if conn:
-                logger.trace("Closing connection.")
-                conn.close()
-
-            logger.trace("Leaving event polling loop.")
