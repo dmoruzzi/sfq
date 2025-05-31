@@ -74,6 +74,13 @@ for subrequest_identifer, subrequest_response in batched_response.items():
 >>> "Frozen Users" returned 4082 records
 ```
 
+### Collection Deletions
+
+```python
+response = sf.cdelete(['07La0000000bYgj', '07La0000000bYgk', '07La0000000bYgl'])
+>>> [{'id': '500aj000006wtdZAAQ', 'success': True, 'errors': []}, {'id': '500aj000006wtdaAAA', 'success': True, 'errors': []}, {'id': '500aj000006wtdbAAA', 'success': True, 'errors': []}]
+```
+
 ### Static Resources
 
 ```python

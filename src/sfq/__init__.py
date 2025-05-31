@@ -7,15 +7,11 @@ import time
 import warnings
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any, Dict, Literal, Optional, List, Tuple
+from typing import Any, Dict, Iterable, Literal, Optional, List, Tuple
 from urllib.parse import quote, urlparse
 
 TRACE = 5
 logging.addLevelName(TRACE, "TRACE")
-
-
-class ExperimentalWarning(Warning):
-    pass
 
 
 def trace(self: logging.Logger, message: str, *args: Any, **kwargs: Any) -> None:
@@ -88,7 +84,7 @@ class SFAuth:
         access_token: Optional[str] = None,
         token_expiration_time: Optional[float] = None,
         token_lifetime: int = 15 * 60,
-        user_agent: str = "sfq/0.0.15",
+        user_agent: str = "sfq/0.0.16",
         sforce_client: str = "_auto",
         proxy: str = "auto",
     ) -> None:
@@ -104,7 +100,7 @@ class SFAuth:
         :param access_token: The access token for the current session (default is None).
         :param token_expiration_time: The expiration time of the access token (default is None).
         :param token_lifetime: The lifetime of the access token in seconds (default is 15 minutes).
-        :param user_agent: Custom User-Agent string (default is "sfq/0.0.15").
+        :param user_agent: Custom User-Agent string (default is "sfq/0.0.16").
         :param sforce_client: Custom Application Identifier (default is user_agent).
         :param proxy: The proxy configuration, "auto" to use environment (default is "auto").
         """
@@ -118,12 +114,12 @@ class SFAuth:
         self.token_expiration_time = token_expiration_time
         self.token_lifetime = token_lifetime
         self.user_agent = user_agent
-        self.sforce_client = sforce_client
+        self.sforce_client = quote(str(sforce_client), safe="")
         self._auto_configure_proxy(proxy)
         self._high_api_usage_threshold = 80
 
         if sforce_client == "_auto":
-            self.sforce_client = user_agent
+            self.sforce_client = quote(str(user_agent), safe="")
 
         if self.client_secret == "_deprecation_warning":
             warnings.warn(
@@ -210,7 +206,6 @@ class SFAuth:
         endpoint: str,
         headers: Dict[str, str],
         body: Optional[str] = None,
-        timeout: Optional[int] = None,
     ) -> Tuple[Optional[int], Optional[str]]:
         """
         Unified request method with built-in logging and error handling.
@@ -256,7 +251,7 @@ class SFAuth:
         :param payload: Payload for the token request.
         :return: Parsed JSON response or None on failure.
         """
-        headers = self._get_common_headers()
+        headers = self._get_common_headers(recursive_call=True)
         headers["Content-Type"] = "application/x-www-form-urlencoded"
         del headers["Authorization"]
 
@@ -343,16 +338,15 @@ class SFAuth:
         logger.error("Failed to obtain access token.")
         return None
 
-    def _get_common_headers(self) -> Dict[str, str]:
+    def _get_common_headers(self, recursive_call: bool = False) -> Dict[str, str]:
         """
         Generate common headers for API requests.
 
         :return: A dictionary of common headers.
         """
-        if not self.access_token and self.token_expiration_time is None:
-            self.token_expiration_time = int(time.time())
+        if not recursive_call:
             self._refresh_token_if_needed()
-        
+
         return {
             "Authorization": f"Bearer {self.access_token}",
             "User-Agent": self.user_agent,
@@ -360,8 +354,6 @@ class SFAuth:
             "Accept": "application/json",
             "Content-Type": "application/json",
         }
-
-    
 
     def _is_token_expired(self) -> bool:
         """
@@ -648,7 +640,7 @@ class SFAuth:
         return None
 
     def cquery(
-        self, query_dict: dict[str, str], max_workers: int = 10
+        self, query_dict: dict[str, str], batch_size: int = 25, max_workers: int = None
     ) -> Optional[Dict[str, Any]]:
         """
         Execute multiple SOQL queries using the Composite Batch API with threading to reduce network overhead.
@@ -657,7 +649,8 @@ class SFAuth:
         Each query (subrequest) is counted as a unique API request against Salesforce governance limits.
 
         :param query_dict: A dictionary of SOQL queries with keys as logical names and values as SOQL queries.
-        :param max_workers: The maximum number of threads to spawn for concurrent execution (default is 10).
+        :param batch_size: The number of queries to include in each batch (default is 25).
+        :param max_workers: The maximum number of threads to spawn for concurrent execution (default is None).
         :return: Dict mapping the original keys to their corresponding batch response or None on failure.
         """
         if not query_dict:
@@ -757,3 +750,51 @@ class SFAuth:
 
         logger.trace("Composite query results: %s", results_dict)
         return results_dict
+
+    def cdelete(
+        self, ids: Iterable[str], batch_size: int = 200, max_workers: int = None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Execute the Collections Delete API to delete multiple records using multithreading.
+
+        :param ids: A list of record IDs to delete.
+        :param batch_size: The number of records to delete in each batch (default is 200).
+        :param max_workers: The maximum number of threads to spawn for concurrent execution (default is None).
+        :return: Combined JSON response from all batches or None on complete failure.
+        """
+        ids = list(ids)
+        chunks = [ids[i : i + batch_size] for i in range(0, len(ids), batch_size)]
+
+        def delete_chunk(chunk: List[str]) -> Optional[Dict[str, Any]]:
+            endpoint = f"/services/data/{self.api_version}/composite/sobjects?ids={','.join(chunk)}&allOrNone=false"
+            headers = self._get_common_headers()
+
+            status_code, resp_data = self._send_request(
+                method="DELETE",
+                endpoint=endpoint,
+                headers=headers,
+            )
+
+            if status_code == 200:
+                logger.debug("Collections delete API response without errors.")
+                return json.loads(resp_data)
+            else:
+                logger.error("Collections delete API request failed: %s", status_code)
+                logger.debug("Response body: %s", resp_data)
+                return None
+
+        results = []
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = [executor.submit(delete_chunk, chunk) for chunk in chunks]
+            for future in as_completed(futures):
+                result = future.result()
+                if result:
+                    results.append(result)
+
+        combined_response = [
+            item
+            for result in results
+            for item in (result if isinstance(result, list) else [result])
+            if isinstance(result, (dict, list))
+        ]
+        return combined_response or None
