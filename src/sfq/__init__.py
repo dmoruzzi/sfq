@@ -102,7 +102,7 @@ class SFAuth:
         :param token_lifetime: The lifetime of the access token in seconds (default is 15 minutes).
         :param user_agent: Custom User-Agent string (default is "sfq/0.0.16").
         :param sforce_client: Custom Application Identifier (default is user_agent).
-        :param proxy: The proxy configuration, "auto" to use environment (default is "auto").
+        :param proxy: The proxy configuration, "_auto" to use environment (default is "_auto").
         """
         self.instance_url = self._format_instance_url(instance_url)
         self.client_id = client_id
@@ -114,12 +114,12 @@ class SFAuth:
         self.token_expiration_time = token_expiration_time
         self.token_lifetime = token_lifetime
         self.user_agent = user_agent
-        self.sforce_client = quote(str(sforce_client), safe="")
+        self.sforce_client = str(sforce_client).replace(",", "")
         self._auto_configure_proxy(proxy)
         self._high_api_usage_threshold = 80
 
         if sforce_client == "_auto":
-            self.sforce_client = quote(str(user_agent), safe="")
+            self.sforce_client = user_agent
 
         if self.client_secret == "_deprecation_warning":
             warnings.warn(
@@ -134,6 +134,13 @@ class SFAuth:
             )
 
     def _format_instance_url(self, instance_url) -> str:
+        """
+        HTTPS is mandatory with Spring '21 release,
+        This method ensures that the instance URL is formatted correctly.
+
+        :param instance_url: The Salesforce instance URL.
+        :return: The formatted instance URL.
+        """
         if instance_url.startswith("https://"):
             return instance_url
         if instance_url.startswith("http://"):
@@ -144,8 +151,8 @@ class SFAuth:
         """
         Automatically configure the proxy based on the environment or provided value.
         """
-        if proxy == "auto":
-            self.proxy = os.environ.get("https_proxy")
+        if proxy == "_auto":
+            self.proxy = os.environ.get("https_proxy")  # HTTPs is mandatory
             if self.proxy:
                 logger.debug("Auto-configured proxy: %s", self.proxy)
         else:
