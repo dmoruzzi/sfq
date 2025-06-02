@@ -86,7 +86,7 @@ class SFAuth:
         token_lifetime: int = 15 * 60,
         user_agent: str = "sfq/0.0.16",
         sforce_client: str = "_auto",
-        proxy: str = "auto",
+        proxy: str = "_auto",
     ) -> None:
         """
         Initializes the SFAuth with necessary parameters.
@@ -804,4 +804,75 @@ class SFAuth:
             for item in (result if isinstance(result, list) else [result])
             if isinstance(result, (dict, list))
         ]
+        return combined_response or None
+
+    def _cupdate(self, update_dict: Dict[str, Any], batch_size: int = 25, max_workers: int = None) -> Optional[Dict[str, Any]]:
+        """
+        Execute the Composite Update API to update multiple records.
+
+        :param update_dict: A dictionary of keys of records to be updated, and a dictionary of field-value pairs to be updated, with a special key '_' overriding the sObject type which is otherwise inferred from the key. Example:
+            {'001aj00000C8kJhAAJ': {'Subject': 'Easily updated via SFQ'}, '00aaj000006wtdcAAA': {'_': 'CaseComment', 'IsPublished': False}, '001aj0000002yJRCAY': {'_': 'IdeaComment', 'CommentBody': 'Hello World!'}} 
+        :param batch_size: The number of records to update in each batch (default is 25).
+        :return: JSON response from the update request or None on failure.
+        """
+        allOrNone = False
+        endpoint = f"/services/data/{self.api_version}/composite"
+
+        compositeRequest_payload = []
+        sobject_prefixes = {}
+
+        for key, record in update_dict.items():
+            sobject = record.copy().pop("_", None)
+            if not sobject and not sobject_prefixes:
+                sobject_prefixes = self.get_sobject_prefixes()
+            
+            sobject = str(sobject) or str(sobject_prefixes.get(str(key[:3]), None))
+            
+            compositeRequest_payload.append(
+                {
+                    'method': 'PATCH',
+                    'url': f"/services/data/{self.api_version}/sobjects/{sobject}/{key}",
+                    'referenceId': key,
+                    'body': record,
+                }
+            )
+
+        chunks = [compositeRequest_payload[i:i+batch_size] for i in range(0, len(compositeRequest_payload), batch_size)]
+
+        def update_chunk(chunk: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+            payload = {
+                "allOrNone": bool(allOrNone),
+                "compositeRequest": chunk
+            }
+
+            status_code, resp_data = self._send_request(
+                method="POST",
+                endpoint=endpoint,
+                headers=self._get_common_headers(),
+                body=json.dumps(payload),
+            )
+
+            if status_code == 200:
+                logger.debug("Composite update API response without errors.")
+                return json.loads(resp_data)
+            else:
+                logger.error("Composite update API request failed: %s", status_code)
+                logger.debug("Response body: %s", resp_data)
+                return None
+
+        results = []
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = [executor.submit(update_chunk, chunk) for chunk in chunks]
+            for future in as_completed(futures):
+                result = future.result()
+                if result:
+                    results.append(result)
+
+        combined_response = [
+            item
+            for result in results
+            for item in (result if isinstance(result, list) else [result])
+            if isinstance(result, (dict, list))
+        ]
+        
         return combined_response or None
