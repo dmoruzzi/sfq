@@ -40,18 +40,6 @@ print(sf.query("SELECT Id FROM Account LIMIT 5"))
 print(sf.tooling_query("SELECT Id, FullName, Metadata FROM SandboxSettings LIMIT 5"))
 ```
 
-### sObject Key Prefixes
-
-```python
-# Key prefix via IDs
-print(sf.get_sobject_prefixes())
->>> {'0Pp': 'AIApplication', '6S9': 'AIApplicationConfig', '9qd': 'AIInsightAction', '9bq': 'AIInsightFeedback', '0T2': 'AIInsightReason', '9qc': 'AIInsightValue', ...}
-
-# Key prefix via names
-print(sf.get_sobject_prefixes(key_type="name"))
->>> {'AIApplication': '0Pp', 'AIApplicationConfig': '6S9', 'AIInsightAction': '9qd', 'AIInsightFeedback': '9bq', 'AIInsightReason': '0T2', 'AIInsightValue': '9qc', ...}
-```
-
 ### Composite Batch Queries
 
 ```python
@@ -78,7 +66,7 @@ for subrequest_identifer, subrequest_response in batched_response.items():
 
 ```python
 response = sf.cdelete(['07La0000000bYgj', '07La0000000bYgk', '07La0000000bYgl'])
->>> [{'id': '500aj000006wtdZAAQ', 'success': True, 'errors': []}, {'id': '500aj000006wtdaAAA', 'success': True, 'errors': []}, {'id': '500aj000006wtdbAAA', 'success': True, 'errors': []}]
+>>> [{'id': '07La0000000bYgj', 'success': True, 'errors': []}, {'id': '07La0000000bYgk', 'success': True, 'errors': []}, {'id': '07La0000000bYgl', 'success': True, 'errors': []}]
 ```
 
 ### Static Resources
@@ -92,6 +80,18 @@ page = sf.read_static_resource_name('HelloWorld')
 print(f'Updated resource: {page}')
 >>> Updated resource: <h1>Hello World</h1>
 sf.update_static_resource_id('081aj000009jUMXAA2', '<h1>It works!</h1>')
+```
+
+### sObject Key Prefixes
+
+```python
+# Key prefix via IDs
+print(sf.get_sobject_prefixes())
+>>> {'0Pp': 'AIApplication', '6S9': 'AIApplicationConfig', '9qd': 'AIInsightAction', '9bq': 'AIInsightFeedback', '0T2': 'AIInsightReason', '9qc': 'AIInsightValue', ...}
+
+# Key prefix via names
+print(sf.get_sobject_prefixes(key_type="name"))
+>>> {'AIApplication': '0Pp', 'AIApplicationConfig': '6S9', 'AIInsightAction': '9qd', 'AIInsightFeedback': '9bq', 'AIInsightReason': '0T2', 'AIInsightValue': '9qc', ...}
 ```
 
 ## How to Obtain Salesforce Tokens
