@@ -84,7 +84,7 @@ class SFAuth:
         access_token: Optional[str] = None,
         token_expiration_time: Optional[float] = None,
         token_lifetime: int = 15 * 60,
-        user_agent: str = "sfq/0.0.18",
+        user_agent: str = "sfq/0.0.19",
         sforce_client: str = "_auto",
         proxy: str = "_auto",
     ) -> None:
@@ -100,7 +100,7 @@ class SFAuth:
         :param access_token: The access token for the current session (default is None).
         :param token_expiration_time: The expiration time of the access token (default is None).
         :param token_lifetime: The lifetime of the access token in seconds (default is 15 minutes).
-        :param user_agent: Custom User-Agent string (default is "sfq/0.0.18").
+        :param user_agent: Custom User-Agent string (default is "sfq/0.0.19").
         :param sforce_client: Custom Application Identifier (default is user_agent).
         :param proxy: The proxy configuration, "_auto" to use environment (default is "_auto").
         """
