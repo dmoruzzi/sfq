@@ -826,7 +826,8 @@ class SFAuth:
             if not sobject and not sobject_prefixes:
                 sobject_prefixes = self.get_sobject_prefixes()
             
-            sobject = str(sobject) or str(sobject_prefixes.get(str(key[:3]), None))
+            if not sobject:
+                sobject = str(sobject_prefixes.get(str(key[:3]), None))
             
             compositeRequest_payload.append(
                 {
