@@ -1,37 +1,106 @@
-name: Publish to PyPI
+name: Version, Build, and Publish
 
 on:
-  release:
-    types: [published]
+  push:
+    branches: ["main"]
   workflow_dispatch:
 
-jobs:
+permissions:
+  contents: write
+  id-token: write
 
-  publish-release:
-    name: upload release to PyPI
+jobs:
+  release:
     runs-on: ubuntu-latest
-    permissions:
-      id-token: write
     environment: release
+
     steps:
-      - name: Check out repository
+      - name: Checkout repo
         uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: 3.12
 
-      - name: Install uv
+      - name: Install uv CLI
         uses: astral-sh/setup-uv@v4
         with:
-          version: "latest"
+          version: latest
           enable-cache: true
 
-      - name: Uv sync
+      - name: Sync dependencies with uv
         run: uv sync
 
-      - name: Build package
+      - name: Authenticate GitHub CLI
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
+
+      - name: Calculate next patch version from latest tag (using gh)
+        id: get_version
+        run: |
+          echo "Fetching tags using gh CLI..."
+
+          TAGS=$(gh api repos/${{ github.repository }}/tags --jq '.[].name' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V)
+
+          echo "All semver tags found:"
+          echo "$TAGS"
+
+          LATEST_TAG=$(echo "$TAGS" | tail -n1)
+          echo "Latest tag found: $LATEST_TAG"
+
+          if [ -z "$LATEST_TAG" ]; then
+            NEXT_VERSION="0.0.1"
+            echo "No tags found, starting at $NEXT_VERSION"
+          else
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$LATEST_TAG"
+            PATCH=$((PATCH + 1))
+            NEXT_VERSION="$MAJOR.$MINOR.$PATCH"
+            echo "Incremented patch version to $NEXT_VERSION"
+          fi
+
+          echo "version=$NEXT_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Update version strings in files
+        run: |
+          VERSION=${{ steps.get_version.outputs.version }}
+
+          echo "Updating pyproject.toml version to $VERSION"
+          sed -i -E "s/(^version *= *\")([0-9]+\.[0-9]+\.[0-9]+)(\")/\1$VERSION\3/" pyproject.toml
+
+          echo "Updating uv.lock version to $VERSION"
+          sed -i -E "s/(^version *= *\")([0-9]+\.[0-9]+\.[0-9]+)(\")/\1$VERSION\3/" uv.lock
+
+          echo "Updating src/sfq/__init__.py user_agent to $VERSION"
+          sed -i -E "s/(user_agent: str = \"sfq\/)[0-9]+\.[0-9]+\.[0-9]+(\")/\1$VERSION\2/" src/sfq/__init__.py
+          sed -i -E "s/(default is \"sfq\/)[0-9]+\.[0-9]+\.[0-9]+(\")/\1$VERSION\2/" src/sfq/__init__.py
+
+      - name: Commit version updates
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add pyproject.toml uv.lock src/sfq/__init__.py
+          git commit -m "chore: bump version to ${{ steps.get_version.outputs.version }}"
+          git push
+
+      - name: Create and push git tag
+        run: |
+          VERSION=${{ steps.get_version.outputs.version }}
+          git tag $VERSION
+          git push origin $VERSION
+
+      - name: Build package with uv
         run: uv build
 
       - name: Publish package distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+
+      - name: Upload artifacts to GitHub Release (prerelease)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.get_version.outputs.version }}
+          name: Release ${{ steps.get_version.outputs.version }}
+          files: dist/*
+          prerelease: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
