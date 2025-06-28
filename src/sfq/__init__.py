@@ -510,6 +510,40 @@ class SFAuth:
         logger.error("Failed to fetch limits: %s", status)
         return None
 
+    def _paginate_query_result(self, initial_result: dict, headers: dict) -> dict:
+        """
+        Helper to paginate Salesforce query results (for both query and cquery).
+        Returns a dict with all records combined.
+        """
+        records = list(initial_result.get("records", []))
+        done = initial_result.get("done", True)
+        next_url = initial_result.get("nextRecordsUrl")
+        total_size = initial_result.get("totalSize", len(records))
+
+        while not done and next_url:
+            status_code, data = self._send_request(
+                method="GET",
+                endpoint=next_url,
+                headers=headers,
+            )
+            if status_code == 200:
+                next_result = json.loads(data)
+                records.extend(next_result.get("records", []))
+                done = next_result.get("done", True)
+                next_url = next_result.get("nextRecordsUrl")
+                total_size = next_result.get("totalSize", total_size)
+            else:
+                logger.error("Failed to fetch next records: %s", data)
+                break
+
+        paginated = dict(initial_result)
+        paginated["records"] = records
+        paginated["done"] = done
+        paginated["totalSize"] = total_size
+        if "nextRecordsUrl" in paginated:
+            del paginated["nextRecordsUrl"]
+        return paginated
+
     def query(self, query: str, tooling: bool = False) -> Optional[Dict[str, Any]]:
         """
         Execute a SOQL query using the REST or Tooling API.
@@ -524,53 +558,29 @@ class SFAuth:
         endpoint += query_string
         headers = self._get_common_headers()
 
-        paginated_results = {"totalSize": 0, "done": False, "records": []}
-
         try:
-            while True:
-                logger.trace("Request endpoint: %s", endpoint)
-                logger.trace("Request headers: %s", headers)
-                headers = self._get_common_headers()  # handle refresh token
-
-                status_code, data = self._send_request(
-                    method="GET",
-                    endpoint=endpoint,
-                    headers=headers,
+            status_code, data = self._send_request(
+                method="GET",
+                endpoint=endpoint,
+                headers=headers,
+            )
+            if status_code == 200:
+                result = json.loads(data)
+                paginated = self._paginate_query_result(result, headers)
+                logger.debug(
+                    "Query successful, returned %s records: %r",
+                    paginated.get("totalSize"),
+                    query,
                 )
-
-                if status_code == 200:
-                    current_results = json.loads(data)
-                    paginated_results["records"].extend(current_results["records"])
-                    query_done = current_results.get("done")
-                    if query_done:
-                        total_size = current_results.get("totalSize")
-                        paginated_results = {
-                            "totalSize": total_size,
-                            "done": query_done,
-                            "records": paginated_results["records"],
-                        }
-                        logger.debug(
-                            "Query successful, returned %s records: %r",
-                            total_size,
-                            query,
-                        )
-                        logger.trace("Query full response: %s", data)
-                        break
-                    endpoint = current_results.get("nextRecordsUrl")
-                    logger.debug(
-                        "Query batch successful, getting next batch: %s", endpoint
-                    )
-                else:
-                    logger.debug("Query failed: %r", query)
-                    logger.error(
-                        "Query failed with HTTP status %s",
-                        status_code,
-                    )
-                    logger.debug("Query response: %s", data)
-                    break
-
-            return paginated_results
-
+                logger.trace("Query full response: %s", paginated)
+                return paginated
+            else:
+                logger.debug("Query failed: %r", query)
+                logger.error(
+                    "Query failed with HTTP status %s",
+                    status_code,
+                )
+                logger.debug("Query response: %s", data)
         except Exception as err:
             logger.exception("Exception during query: %s", err)
 
@@ -664,7 +674,7 @@ class SFAuth:
             logger.warning("No queries to execute.")
             return None
 
-        def _execute_batch(queries_batch):
+        def _execute_batch(batch_keys, batch_queries):
             endpoint = f"/services/data/{self.api_version}/composite/batch"
             headers = self._get_common_headers()
 
@@ -675,7 +685,7 @@ class SFAuth:
                         "method": "GET",
                         "url": f"/services/data/{self.api_version}/query?q={quote(query)}",
                     }
-                    for query in queries_batch
+                    for query in batch_queries
                 ],
             }
 
@@ -692,51 +702,21 @@ class SFAuth:
                 logger.trace("Composite query full response: %s", data)
                 results = json.loads(data).get("results", [])
                 for i, result in enumerate(results):
-                    records = []
-                    if "result" in result and "records" in result["result"]:
-                        records.extend(result["result"]["records"])
-                    # Handle pagination
-                    while not result["result"].get("done", True):
-                        headers = self._get_common_headers()  # handles token refresh
-                        next_url = result["result"].get("nextRecordsUrl")
-                        if next_url:
-                            status_code, next_data = self._send_request(
-                                method="GET",
-                                endpoint=next_url,
-                                headers=headers,
-                            )
-                            if status_code == 200:
-                                next_results = json.loads(next_data)
-                                records.extend(next_results.get("records", []))
-                                result["result"]["done"] = next_results.get("done")
-                            else:
-                                logger.error(
-                                    "Failed to fetch next records: %s",
-                                    next_data,
-                                )
-                                break
-                        else:
-                            result["result"]["done"] = True
-                    paginated_results = result["result"]
-                    paginated_results["records"] = records
-                    if "nextRecordsUrl" in paginated_results:
-                        del paginated_results["nextRecordsUrl"]
-                    batch_results[keys[i]] = paginated_results
-                    if result.get("statusCode") != 200:
-                        logger.error("Query failed for key %s: %s", keys[i], result)
-                        logger.error(
-                            "Query failed with HTTP status %s (%s)",
-                            result.get("statusCode"),
-                            result.get("statusMessage"),
-                        )
-                        logger.trace("Query response: %s", result)
+                    key = batch_keys[i]
+                    if result.get("statusCode") == 200 and "result" in result:
+                        paginated = self._paginate_query_result(result["result"], headers)
+                        batch_results[key] = paginated
+                    else:
+                        logger.error("Query failed for key %s: %s", key, result)
+                        batch_results[key] = result
             else:
                 logger.error(
                     "Composite query failed with HTTP status %s (%s)",
                     status_code,
                     data,
                 )
-                batch_results[keys[i]] = data
+                for i, key in enumerate(batch_keys):
+                    batch_results[key] = data
                 logger.trace("Composite query response: %s", data)
 
             return batch_results
@@ -746,11 +726,11 @@ class SFAuth:
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = []
-            BATCH_SIZE = 25
+            BATCH_SIZE = batch_size
             for i in range(0, len(keys), BATCH_SIZE):
                 batch_keys = keys[i : i + BATCH_SIZE]
                 batch_queries = [query_dict[key] for key in batch_keys]
-                futures.append(executor.submit(_execute_batch, batch_queries))
+                futures.append(executor.submit(_execute_batch, batch_keys, batch_queries))
 
             for future in as_completed(futures):
                 results_dict.update(future.result())
