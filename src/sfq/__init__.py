@@ -79,7 +79,7 @@ class SFAuth:
         client_id: str,
         refresh_token: str,  # client_secret & refresh_token will swap positions 2025-AUG-1
         client_secret: str = "_deprecation_warning",  # mandatory after 2025-AUG-1
-        api_version: str = "v63.0",
+        api_version: str = "v64.0",
         token_endpoint: str = "/services/oauth2/token",
         access_token: Optional[str] = None,
         token_expiration_time: Optional[float] = None,
@@ -95,7 +95,7 @@ class SFAuth:
         :param client_id: The client ID for OAuth.
         :param refresh_token: The refresh token for OAuth.
         :param client_secret: The client secret for OAuth (default is "_deprecation_warning").
-        :param api_version: The Salesforce API version (default is "v63.0").
+        :param api_version: The Salesforce API version (default is "v64.0").
         :param token_endpoint: The token endpoint (default is "/services/oauth2/token").
         :param access_token: The access token for the current session (default is None).
         :param token_expiration_time: The expiration time of the access token (default is None).
