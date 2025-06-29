@@ -86,9 +86,6 @@ jobs:
           SF_CLIENT_SECRET: ${{ secrets.SF_CLIENT_SECRET }}
           SF_REFRESH_TOKEN: ${{ secrets.SF_REFRESH_TOKEN }}
 
-      - name: Exit early
-        run: exit 1
-
       - name: Commit version updates
         run: |
           git config user.name "github-actions"
