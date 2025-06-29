@@ -120,7 +120,7 @@ jobs:
         run: pip install pdoc
 
       - name: Generate docs
-        run: pdoc .\src\sfq\__init__.py -o docs --no-search
+        run: pdoc src/sfq/__init__.py -o docs --no-search
 
       - name: Set sfq.html as default index page
         run: |
