@@ -1,3 +1,7 @@
+"""
+.. include:: ../../README.md
+"""
+
 import base64
 import http.client
 import json
@@ -9,6 +13,8 @@ from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, Iterable, Literal, Optional, List, Tuple
 from urllib.parse import quote, urlparse
+
+__all__ = ["SFAuth"]  # https://pdoc.dev/docs/pdoc.html#control-what-is-documented
 
 TRACE = 5
 logging.addLevelName(TRACE, "TRACE")
@@ -94,27 +100,145 @@ class SFAuth:
         :param instance_url: The Salesforce instance URL.
         :param client_id: The client ID for OAuth.
         :param refresh_token: The refresh token for OAuth.
-        :param client_secret: The client secret for OAuth (default is "_deprecation_warning").
-        :param api_version: The Salesforce API version (default is "v64.0").
-        :param token_endpoint: The token endpoint (default is "/services/oauth2/token").
-        :param access_token: The access token for the current session (default is None).
-        :param token_expiration_time: The expiration time of the access token (default is None).
-        :param token_lifetime: The lifetime of the access token in seconds (default is 15 minutes).
-        :param user_agent: Custom User-Agent string (default is "sfq/0.0.22").
-        :param sforce_client: Custom Application Identifier (default is user_agent).
-        :param proxy: The proxy configuration, "_auto" to use environment (default is "_auto").
+        :param client_secret: The client secret for OAuth.
+        :param api_version: The Salesforce API version.
+        :param token_endpoint: The token endpoint.
+        :param access_token: The access token for the current session.
+        :param token_expiration_time: The expiration time of the access token.
+        :param token_lifetime: The lifetime of the access token in seconds.
+        :param user_agent: Custom User-Agent string.
+        :param sforce_client: Custom Application Identifier.
+        :param proxy: The proxy configuration, "_auto" to use environment.
         """
         self.instance_url = self._format_instance_url(instance_url)
+        """
+        ### `instance_url`
+        **The fully qualified Salesforce instance URL.**
+
+        - Should end with `.my.salesforce.com`
+        - No trailing slash
+
+        **Examples:**
+        - `https://sfq-dev-ed.trailblazer.my.salesforce.com`
+        - `https://sfq.my.salesforce.com`
+        - `https://sfq--dev.sandbox.my.salesforce.com`
+        """
+
         self.client_id = client_id
+        """
+        ### `client_id`
+        **The OAuth client ID.**
+
+        - Uniquely identifies your **Connected App** in Salesforce
+        - If using **Salesforce CLI**, this is `"PlatformCLI"`
+        - For other apps, find this value in the **Connected App details**
+        """
+
         self.client_secret = client_secret
+        """
+        ### `client_secret`
+        **The OAuth client secret.**
+
+        - Secret key associated with your Connected App
+        - For **Salesforce CLI**, this is typically an empty string `""`
+        - For custom apps, locate it in the **Connected App settings**
+        """
+
         self.refresh_token = refresh_token
+        """
+        ### `refresh_token`
+        **The OAuth refresh token.**
+
+        - Used to fetch new access tokens when the current one expires
+        - For CLI, obtain via:
+
+          ```bash
+          sf org display --json
+        ````
+
+        * For other apps, this value is returned during the **OAuth authorization flow**
+            * 📖 [Salesforce OAuth Flows Documentation](https://help.salesforce.com/s/articleView?id=xcloud.remoteaccess_oauth_flows.htm&type=5)
+        """
+
         self.api_version = api_version
+        """
+
+        ### `api_version`
+
+        **The Salesforce API version to use.**
+
+        * Must include the `"v"` prefix (e.g., `"v64.0"`)
+        * Periodically updated to align with new Salesforce releases
+        """
+
         self.token_endpoint = token_endpoint
+        """
+
+        ### `token_endpoint`
+
+        **The token URL path for OAuth authentication.**
+
+        * Defaults to Salesforce's `.well-known/openid-configuration` for *token* endpoint
+        * Should start with a **leading slash**, e.g., `/services/oauth2/token`
+        * No customization is typical, but internal designs may use custom ApexRest endpoints
+          """
+
         self.access_token = access_token
+        """
+
+        ### `access_token`
+
+        **The current OAuth access token.**
+
+        * Used to authorize API requests
+        * Does not include Bearer prefix, strictly the token
+        """
+
         self.token_expiration_time = token_expiration_time
+        """
+
+        ### `token_expiration_time`
+
+        **Unix timestamp (in seconds) for access token expiration.**
+
+        * Managed automatically by the library
+        * Useful for checking when to refresh the token
+          """
+
         self.token_lifetime = token_lifetime
+        """
+
+        ### `token_lifetime`
+
+        **Access token lifespan in seconds.**
+
+        * Determined by your Connected App's session policies
+        * Used to calculate when to refresh the token
+          """
+
         self.user_agent = user_agent
+        """
+
+        ### `user_agent`
+
+        **Custom User-Agent string for API calls.**
+
+        * Included in HTTP request headers
+        * Useful for identifying traffic in Salesforce `ApiEvent` logs
+          """
+
         self.sforce_client = str(sforce_client).replace(",", "")
+        """
+
+        ### `sforce_client`
+
+        **Custom application identifier.**
+
+        * Included in the `Sforce-Call-Options` header
+        * Useful for identifying traffic in Event Log Files
+        * Commas are not allowed; will be stripped
+        """
+
         self._auto_configure_proxy(proxy)
         self._high_api_usage_threshold = 80
 
