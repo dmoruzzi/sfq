@@ -11,5 +11,6 @@ def pytest_runtest_logreport(report):
 
 def pytest_sessionfinish(session, exitstatus):
     if session.testscollected > 0 and executed_tests == 0:
+        print()
         print("❌ Pytest collected tests, but all were skipped. Failing the run.")
         session.exitstatus = 1
