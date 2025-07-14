@@ -7,11 +7,13 @@ import http.client
 import json
 import logging
 import os
+import re
 import time
 import warnings
+import xml.etree.ElementTree as ET
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any, Dict, Iterable, Literal, Optional, List, Tuple
+from typing import Any, Dict, Iterable, List, Literal, Optional, Tuple
 from urllib.parse import quote, urlparse
 
 __all__ = ["SFAuth"]  # https://pdoc.dev/docs/pdoc.html#control-what-is-documented
@@ -24,7 +26,7 @@ def trace(self: logging.Logger, message: str, *args: Any, **kwargs: Any) -> None
     """Custom TRACE level logging function with redaction."""
 
     def _redact_sensitive(data: Any) -> Any:
-        """Redacts sensitive keys from a dictionary or query string."""
+        """Redacts sensitive keys from a dictionary, query string, or sessionId."""
         REDACT_VALUE = "*" * 8
         REDACT_KEYS = [
             "access_token",
@@ -33,6 +35,7 @@ def trace(self: logging.Logger, message: str, *args: Any, **kwargs: Any) -> None
             "cookie",
             "refresh_token",
             "client_secret",
+            "sessionid",
         ]
         if isinstance(data, dict):
             return {
@@ -49,6 +52,12 @@ def trace(self: logging.Logger, message: str, *args: Any, **kwargs: Any) -> None
                 )
             )
         elif isinstance(data, str):
+            if "<sessionId>" in data and "</sessionId>" in data:
+                data = re.sub(
+                    r"(<sessionId>)(.*?)(</sessionId>)",
+                    r"\1{}\3".format(REDACT_VALUE),
+                    data,
+                )
             parts = data.split("&")
             for i, part in enumerate(parts):
                 if "=" in part:
@@ -828,7 +837,9 @@ class SFAuth:
                 for i, result in enumerate(results):
                     key = batch_keys[i]
                     if result.get("statusCode") == 200 and "result" in result:
-                        paginated = self._paginate_query_result(result["result"], headers)
+                        paginated = self._paginate_query_result(
+                            result["result"], headers
+                        )
                         batch_results[key] = paginated
                     else:
                         logger.error("Query failed for key %s: %s", key, result)
@@ -854,7 +865,9 @@ class SFAuth:
             for i in range(0, len(keys), BATCH_SIZE):
                 batch_keys = keys[i : i + BATCH_SIZE]
                 batch_queries = [query_dict[key] for key in batch_keys]
-                futures.append(executor.submit(_execute_batch, batch_keys, batch_queries))
+                futures.append(
+                    executor.submit(_execute_batch, batch_keys, batch_queries)
+                )
 
             for future in as_completed(futures):
                 results_dict.update(future.result())
@@ -910,12 +923,14 @@ class SFAuth:
         ]
         return combined_response or None
 
-    def _cupdate(self, update_dict: Dict[str, Any], batch_size: int = 25, max_workers: int = None) -> Optional[Dict[str, Any]]:
+    def _cupdate(
+        self, update_dict: Dict[str, Any], batch_size: int = 25, max_workers: int = None
+    ) -> Optional[Dict[str, Any]]:
         """
         Execute the Composite Update API to update multiple records.
 
         :param update_dict: A dictionary of keys of records to be updated, and a dictionary of field-value pairs to be updated, with a special key '_' overriding the sObject type which is otherwise inferred from the key. Example:
-            {'001aj00000C8kJhAAJ': {'Subject': 'Easily updated via SFQ'}, '00aaj000006wtdcAAA': {'_': 'CaseComment', 'IsPublished': False}, '001aj0000002yJRCAY': {'_': 'IdeaComment', 'CommentBody': 'Hello World!'}} 
+            {'001aj00000C8kJhAAJ': {'Subject': 'Easily updated via SFQ'}, '00aaj000006wtdcAAA': {'_': 'CaseComment', 'IsPublished': False}, '001aj0000002yJRCAY': {'_': 'IdeaComment', 'CommentBody': 'Hello World!'}}
         :param batch_size: The number of records to update in each batch (default is 25).
         :return: JSON response from the update request or None on failure.
         """
@@ -929,26 +944,26 @@ class SFAuth:
             sobject = record.copy().pop("_", None)
             if not sobject and not sobject_prefixes:
                 sobject_prefixes = self.get_sobject_prefixes()
-            
+
             if not sobject:
                 sobject = str(sobject_prefixes.get(str(key[:3]), None))
-            
+
             compositeRequest_payload.append(
                 {
-                    'method': 'PATCH',
-                    'url': f"/services/data/{self.api_version}/sobjects/{sobject}/{key}",
-                    'referenceId': key,
-                    'body': record,
+                    "method": "PATCH",
+                    "url": f"/services/data/{self.api_version}/sobjects/{sobject}/{key}",
+                    "referenceId": key,
+                    "body": record,
                 }
             )
 
-        chunks = [compositeRequest_payload[i:i+batch_size] for i in range(0, len(compositeRequest_payload), batch_size)]
+        chunks = [
+            compositeRequest_payload[i : i + batch_size]
+            for i in range(0, len(compositeRequest_payload), batch_size)
+        ]
 
         def update_chunk(chunk: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-            payload = {
-                "allOrNone": bool(allOrNone),
-                "compositeRequest": chunk
-            }
+            payload = {"allOrNone": bool(allOrNone), "compositeRequest": chunk}
 
             status_code, resp_data = self._send_request(
                 method="POST",
@@ -979,5 +994,174 @@ class SFAuth:
             for item in (result if isinstance(result, list) else [result])
             if isinstance(result, (dict, list))
         ]
-        
+
+        return combined_response or None
+
+    def _gen_soap_envelope(self, header: str, body: str) -> str:
+        """Generates a full SOAP envelope with all required namespaces for Salesforce Enterprise API."""
+        return (
+            '<?xml version="1.0" encoding="UTF-8"?>'
+            "<soapenv:Envelope "
+            'xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" '
+            'xmlns:xsd="http://www.w3.org/2001/XMLSchema" '
+            'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" '
+            'xmlns="urn:enterprise.soap.sforce.com" '
+            'xmlns:sf="urn:sobject.enterprise.soap.sforce.com">'
+            f"{header}{body}"
+            "</soapenv:Envelope>"
+        )
+
+    def _gen_soap_header(self):
+        """This function generates the header for the SOAP request."""
+        headers = self._get_common_headers()
+        session_id = headers["Authorization"].split(" ")[1]
+        return f"<soapenv:Header><SessionHeader><sessionId>{session_id}</sessionId></SessionHeader></soapenv:Header>"
+
+    def _extract_soap_result_fields(self, xml_string: str) -> Optional[Dict[str, Any]]:
+        """
+        Parse SOAP XML and extract all child fields from <result> as a dict.
+        """
+
+        def strip_ns(tag):
+            return tag.split("}", 1)[-1] if "}" in tag else tag
+
+        try:
+            root = ET.fromstring(xml_string)
+            results = []
+            for result in root.iter():
+                if result.tag.endswith("result"):
+                    out = {}
+                    for child in result:
+                        out[strip_ns(child.tag)] = child.text
+                    results.append(out)
+            if not results:
+                return None
+            if len(results) == 1:
+                return results[0]
+            return results
+        except ET.ParseError as e:
+            logger.error("Failed to parse SOAP XML: %s", e)
+            return None
+
+    def _gen_soap_body(self, sobject: str, method: str, data: Dict[str, Any]) -> str:
+        """Generates a compact SOAP request body for one or more records."""
+        # Accept both a single dict and a list of dicts
+        if isinstance(data, dict):
+            records = [data]
+        else:
+            records = data
+        sobjects = "".join(
+            f'<sObjects xsi:type="{sobject}">'
+            + "".join(f"<{k}>{v}</{k}>" for k, v in record.items())
+            + "</sObjects>"
+            for record in records
+        )
+        return f"<soapenv:Body><{method}>{sobjects}</{method}></soapenv:Body>"
+
+    def _xml_to_json(self, xml_string: str) -> Optional[Dict[str, Any]]:
+        """
+        Convert an XML string to a JSON-like dictionary.
+
+        :param xml_string: The XML string to convert.
+        :return: A dictionary representation of the XML or None on failure.
+        """
+        try:
+            root = ET.fromstring(xml_string)
+            return self._xml_to_dict(root)
+        except ET.ParseError as e:
+            logger.error("Failed to parse XML: %s", e)
+            return None
+
+    def _xml_to_dict(self, element: ET.Element) -> Dict[str, Any]:
+        """
+        Recursively convert an XML Element to a dictionary.
+
+        :param element: The XML Element to convert.
+        :return: A dictionary representation of the XML Element.
+        """
+        if len(element) == 0:
+            return element.text or ""
+
+        result = {}
+        for child in element:
+            child_dict = self._xml_to_dict(child)
+            if child.tag not in result:
+                result[child.tag] = child_dict
+            else:
+                if not isinstance(result[child.tag], list):
+                    result[child.tag] = [result[child.tag]]
+                result[child.tag].append(child_dict)
+        return result
+
+    def _create(  # I don't like this name, will think of a better one later...as such, not public.
+        self,
+        sobject: str,
+        insert_list: List[Dict[str, Any]],
+        batch_size: int = 200,
+        max_workers: int = None,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Execute the Insert API to insert multiple records via SOAP calls.
+
+        :param sobject: The name of the sObject to insert into.
+        :param insert_list: A list of dictionaries, each representing a record to insert. Example: [{'Subject': 'Easily inserted via SFQ'}]
+        :param batch_size: The number of records to insert in each batch (default is 200).
+        :param max_workers: The maximum number of threads to spawn for concurrent execution (default is None).
+        :return: JSON response from the insert request or None on failure.
+        """
+
+        endpoint = f"/services/Soap/c/{self.api_version}"
+
+        if isinstance(insert_list, dict):
+            insert_list = [insert_list]
+
+        chunks = [
+            insert_list[i : i + batch_size]
+            for i in range(0, len(insert_list), batch_size)
+        ]
+
+        def insert_chunk(chunk: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+            header = self._gen_soap_header()
+            body = self._gen_soap_body(sobject=sobject, method="create", data=chunk)
+            envelope = self._gen_soap_envelope(header, body)
+            soap_headers = self._get_common_headers().copy()
+            soap_headers["Content-Type"] = "text/xml; charset=UTF-8"
+            soap_headers["SOAPAction"] = '""'
+
+            logger.trace("SOAP request envelope: %s", envelope)
+            logger.trace("SOAP request headers: %s", soap_headers)
+            status_code, resp_data = self._send_request(
+                method="POST",
+                endpoint=endpoint,
+                headers=soap_headers,
+                body=envelope,
+            )
+
+            if status_code == 200:
+                logger.debug("Insert API request successful.")
+                logger.trace("Insert API response: %s", resp_data)
+                result = self._extract_soap_result_fields(resp_data)
+                if result:
+                    return result
+                logger.error("Failed to extract fields from SOAP response.")
+            else:
+                logger.error("Insert API request failed: %s", status_code)
+                logger.debug("Response body: %s", resp_data)
+                return None
+
+        results = []
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = [executor.submit(insert_chunk, chunk) for chunk in chunks]
+            for future in as_completed(futures):
+                result = future.result()
+                if result:
+                    results.append(result)
+
+        combined_response = [
+            item
+            for result in results
+            for item in (result if isinstance(result, list) else [result])
+            if isinstance(result, (dict, list))
+        ]
+
         return combined_response or None

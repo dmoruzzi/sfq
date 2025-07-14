@@ -77,3 +77,56 @@ def test_access_token_redacted_in_logs(sf_instance, capture_logs):
     assert "'access_token': '********'," in log_contents in log_contents, (
         "Access token was not properly redacted in logs"
     )
+
+
+def test_soap_sessionid_redacted_in_logs(sf_instance, capture_logs):
+    """
+    Ensure SOAP sessionId is redacted in log output to prevent leakage.
+    """
+    logger, log_stream = capture_logs
+
+    soap_header = sf_instance._gen_soap_header()
+    logger.trace("SOAP header payload: %s", soap_header)
+
+    logger.handlers[0].flush()
+    log_contents = log_stream.getvalue()
+
+    assert "<sessionId>" in log_contents, "Expected <sessionId> tag in logs"
+    assert f"<sessionId>{'*' * 8}</sessionId>" in log_contents, (
+        "SOAP sessionId was not properly redacted in logs"
+    )
+
+
+def test_soap_create_redaction(sf_instance, capture_logs):
+    """
+    Ensure SOAP create operation does not leak sensitive information in logs.
+    """
+    logger, log_stream = capture_logs
+
+    create_response = sf_instance.create("Account", [{"Name": "Test Account"}])
+    logger.trace("Creating Account: %s", create_response)
+
+    created_ids = [
+        item["id"]
+        for item in create_response
+        if item.get("success") is True and "id" in item
+    ]
+
+    if created_ids:
+        del_response = sf_instance.cdelete(created_ids)
+        logger.trace("Deleting created Account: %s", del_response)
+
+    logger.handlers[0].flush()
+    log_contents = log_stream.getvalue()
+
+    for acc_id in created_ids:
+        assert acc_id in log_contents, f"Expected account ID {acc_id} in logs"
+
+    assert "<sessionId>" in log_contents, (
+        "SOAP sessionId should be logged, but redacted"
+    )
+    assert f"<sessionId>{'*' * 8}</sessionId>" in log_contents, (
+        "SOAP sessionId should be logged in redacted form, but was not"
+    )
+
+    assert "access_token" not in log_contents, "Access token should not be logged"

@@ -87,8 +87,38 @@ def test_simple_query_with_tooling(sf_instance):
     assert len(result["records"]) == 1
     assert result == expected
 
+
 def test_query_with_pagination(sf_instance):
     """Ensure that query pagination is functioning"""
+    current_count = sf_instance.query("SELECT Count() FROM FeedComment LIMIT 2200")[
+        "totalSize"
+    ]
+    if current_count < 2200:
+        feedItemId = sf_instance.query("SELECT Id FROM FeedItem LIMIT 1")["records"][0][
+            "Id"
+        ]
+        required_count = 2200 - current_count + 250
+        comments = [
+            {
+                "FeedItemId": feedItemId,
+                "CommentBody": f"Test comment {i} via {sf_instance.user_agent}",
+            }
+            for i in range(required_count)
+        ]
+
+        results = sf_instance.create("FeedComment", comments)
+        assert results and isinstance(results, list), (
+            f"Batch create did not return a list: {results}"
+        )
+
+        current_count = sf_instance.query("SELECT Count() FROM FeedComment LIMIT 2200")[
+            "totalSize"
+        ]
+
+    assert current_count >= 2200, (
+        "Not enough FeedComment records for pagination test exist, despite recent creation..."
+    )
+
     result = sf_instance.query("SELECT Id FROM FeedComment LIMIT 2200")
 
     assert len(result["records"]) == 2200
