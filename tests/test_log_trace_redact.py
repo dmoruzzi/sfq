@@ -103,7 +103,7 @@ def test_soap_create_redaction(sf_instance, capture_logs):
     """
     logger, log_stream = capture_logs
 
-    create_response = sf_instance.create("Account", [{"Name": "Test Account"}])
+    create_response = sf_instance._create("Account", [{"Name": "Test Account"}])
     logger.trace("Creating Account: %s", create_response)
 
     created_ids = [
