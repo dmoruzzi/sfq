@@ -24,7 +24,7 @@ def sf_instance():
 
     missing_vars = [var for var in required_env_vars if not os.getenv(var)]
     if missing_vars:
-        pytest.skip(f"Missing required env vars: {', '.join(missing_vars)}")
+        pytest.fail(f"Missing required env vars: {', '.join(missing_vars)}")
 
     sf = SFAuth(
         instance_url=os.getenv("SF_INSTANCE_URL"),
