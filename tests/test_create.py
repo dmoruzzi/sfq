@@ -47,7 +47,7 @@ def test_feed_comment_insertion(sf_instance):
         "FeedItemId": feed_item_id,
         "CommentBody": f"Test comment via {sf_instance.user_agent}",
     }
-    result = sf_instance.create("FeedComment", [comment])
+    result = sf_instance._create("FeedComment", [comment])
     assert result and isinstance(result, list), (
         f"Create did not return a list: {result}"
     )
@@ -65,7 +65,7 @@ def test_feed_comment_batch_insertion(sf_instance):
         }
         for i in range(250)
     ]
-    results = sf_instance.create("FeedComment", comments)
+    results = sf_instance._create("FeedComment", comments)
     assert results and isinstance(results, list), (
         f"Batch create did not return a list: {results}"
     )
