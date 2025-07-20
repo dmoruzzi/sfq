@@ -170,6 +170,16 @@ class SFAuth:
             * 📖 [Salesforce OAuth Flows Documentation](https://help.salesforce.com/s/articleView?id=xcloud.remoteaccess_oauth_flows.htm&type=5)
         """
 
+        self.__version__ = "0.0.31"
+        """
+        ### `__version__`
+        
+        **The version of the sfq library.**
+        - Schema: `MAJOR.MINOR.PATCH`
+        - Used for debugging and compatibility checks
+        - Updated to reflect the current library version via CI/CD automation
+        """
+
         self.api_version = api_version
         """
 

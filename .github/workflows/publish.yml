@@ -78,6 +78,8 @@ jobs:
           sed -i -E "s/(user_agent: str = \"sfq\/)[0-9]+\.[0-9]+\.[0-9]+(\")/\1$VERSION\2/" src/sfq/__init__.py
           sed -i -E "s/(default is \"sfq\/)[0-9]+\.[0-9]+\.[0-9]+(\")/\1$VERSION\2/" src/sfq/__init__.py
 
+          echo "Updating src/sfq/__init__.py __version__ to $VERSION"
+          sed -i -E "s/(self.__version__ = \")[0-9]+\.[0-9]+\.[0-9]+(\")/\1$VERSION\2/" src/sfq/__init__.py
       - name: Run tests
         run: pytest --verbose --strict-config
         env:
