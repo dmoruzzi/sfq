@@ -99,7 +99,7 @@ class SFAuth:
         access_token: Optional[str] = None,
         token_expiration_time: Optional[float] = None,
         token_lifetime: int = 15 * 60,
-        user_agent: str = "sfq/0.0.29",
+        user_agent: str = "sfq/0.0.30",
         sforce_client: str = "_auto",
         proxy: str = "_auto",
     ) -> None:
