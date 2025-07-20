@@ -1099,6 +1099,7 @@ class SFAuth:
         insert_list: List[Dict[str, Any]],
         batch_size: int = 200,
         max_workers: int = None,
+        api_type: Literal["enterprise", "tooling", "metadata"] = "enterprise",
     ) -> Optional[Dict[str, Any]]:
         """
         Execute the Insert API to insert multiple records via SOAP calls.
@@ -1110,7 +1111,19 @@ class SFAuth:
         :return: JSON response from the insert request or None on failure.
         """
 
-        endpoint = f"/services/Soap/c/{self.api_version}"
+        endpoint = "/services/Soap/"
+        if api_type == "enterprise":
+            endpoint += f"c/{self.api_version}"
+        elif api_type == "tooling":
+            endpoint += f"T/{self.api_version}"
+        elif api_type == "metadata":
+            endpoint += f"m/{self.api_version}"
+        else:
+            logger.error(
+                "Invalid API type: %s. Must be one of: 'enterprise', 'tooling', 'metadata'.",
+                api_type,
+            )
+            return None
 
         if isinstance(insert_list, dict):
             insert_list = [insert_list]
