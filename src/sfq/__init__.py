@@ -10,6 +10,7 @@ import os
 import re
 import time
 import warnings
+import webbrowser
 import xml.etree.ElementTree as ET
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -1198,3 +1199,13 @@ class SFAuth:
         """
         if apex_logs:
             self._debug_cleanup_apex_logs()
+
+    def open_frontdoor(self) -> None:
+        """
+        This function opens the Salesforce Frontdoor URL in the default web browser.
+        """
+        if not self.access_token:
+            self._get_common_headers()
+        sid = quote(self.access_token, safe="")
+        frontdoor_url = f"{self.instance_url}/secur/frontdoor.jsp?sid={sid}"
+        webbrowser.open(frontdoor_url)
