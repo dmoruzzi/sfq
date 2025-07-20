@@ -1178,3 +1178,23 @@ class SFAuth:
         ]
 
         return combined_response or None
+
+    def _debug_cleanup_apex_logs(self):
+        """
+        This function performs cleanup operations for Apex debug logs.
+        """
+        apex_logs = self.query("SELECT Id FROM ApexLog ORDER BY LogLength DESC")
+        if apex_logs and apex_logs.get("records"):
+            log_ids = [log["Id"] for log in apex_logs["records"]]
+            if log_ids:
+                delete_response = self.cdelete(log_ids)
+                logger.debug("Deleted Apex logs: %s", delete_response)
+        else:
+            logger.debug("No Apex logs found to delete.")
+
+    def debug_cleanup(self, apex_logs: bool = True) -> None:
+        """
+        Perform cleanup operations for Apex debug logs.
+        """
+        if apex_logs:
+            self._debug_cleanup_apex_logs()
