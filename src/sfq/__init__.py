@@ -100,7 +100,7 @@ class SFAuth:
         access_token: Optional[str] = None,
         token_expiration_time: Optional[float] = None,
         token_lifetime: int = 15 * 60,
-        user_agent: str = "sfq/0.0.31",
+        user_agent: str = "sfq/0.0.32",
         sforce_client: str = "_auto",
         proxy: str = "_auto",
     ) -> None:
@@ -170,7 +170,7 @@ class SFAuth:
             * 📖 [Salesforce OAuth Flows Documentation](https://help.salesforce.com/s/articleView?id=xcloud.remoteaccess_oauth_flows.htm&type=5)
         """
 
-        self.__version__ = "0.0.31"
+        self.__version__ = "0.0.32"
         """
         ### `__version__`
         
