@@ -1,7 +1,11 @@
+import http.client
+import json
 import os
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from datetime import datetime, timedelta
+from time import sleep
+from urllib.parse import quote
 
 import pytest
 
@@ -33,35 +37,112 @@ def sf_instance():
     )
     return sf
 
+
 def test_debug_cleanup(sf_instance, already_executed: bool = False):
     """
     Test the debug_cleanup method of SFAuth.
-    This test will check if the method can be called without errors.
+    This test ensures the method deletes Apex logs as expected.
     """
+    # Check if any Apex logs already exist
     apex_logs = sf_instance.query("SELECT Id FROM ApexLog LIMIT 1")
-    apex_log_count = len(apex_logs.get("records", []))
-    if apex_log_count == 0:
-        # OK, so we need to create an Apex log to test cleanup
-        # To do this, let's execute a simple Apex anonymous block
-        import http.client
-        conn = http.client.HTTPSConnection(sf_instance.instance_url.replace("https://", ""))
+    if apex_logs.get("records"):
+        sf_instance.debug_cleanup(apex_logs=True)
+        apex_logs_after = sf_instance.query("SELECT Id FROM ApexLog LIMIT 1")
+        assert len(apex_logs_after.get("records", [])) == 0, (
+            "Apex logs were not cleaned up successfully."
+        )
+        return
+
+    # No Apex logs yet; create one via anonymous Apex
+    traceflag_query = sf_instance.tooling_query(
+        f"SELECT Id FROM TraceFlag WHERE TracedEntityId = '{sf_instance.user_id}' LIMIT 1"
+    )
+    records = traceflag_query.get("records", [])
+    traceflag_id = records[0].get("Id") if records else None
+
+    if not traceflag_id:
+        debuglevel_query = sf_instance.tooling_query(
+            "SELECT Id FROM DebugLevel WHERE DeveloperName = 'SFDC_DevConsole' LIMIT 1"
+        )
+        debuglevel_id = debuglevel_query.get("records", [{}])[0].get("Id")
+
+        if not debuglevel_id:
+            pytest.fail(
+                "DebugLevel 'SFDC_DevConsole' not found. Please create it in your Salesforce org."
+            )
+
+        traceflag_payload = {
+            "DebugLevelId": debuglevel_id,
+            "LogType": "USER_DEBUG",
+            "TracedEntityId": sf_instance.user_id,
+            "StartDate": datetime.now(timezone.utc).isoformat(),
+            "ExpirationDate": (
+                datetime.now(timezone.utc) + timedelta(minutes=5)
+            ).isoformat(),
+        }
+        resp = sf_instance._create(
+            sobject="TraceFlag", insert_list=[traceflag_payload], api_type="tooling"
+        )
+        with open("debug_payload.json", "w") as f:
+            f.write(json.dumps(resp, indent=2))
+        with open("debug_payload.json", "w") as f:
+            f.write(json.dumps(traceflag_payload, indent=2))
+
+        traceflag_query = sf_instance.tooling_query(
+            f"SELECT Id FROM TraceFlag WHERE TracedEntityId = '{sf_instance.user_id}' LIMIT 1"
+        )
+        records = traceflag_query.get("records", [])
+        traceflag_id = records[0].get("Id") if records else None
+
+        if not traceflag_id:
+            pytest.fail("Failed to create TraceFlag.")
+
+    else:
+        # Update the existing TraceFlag's dates
+        starttime = datetime.now(timezone.utc).isoformat()
+        endtime = (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat()
+        payload = json.dumps({"StartDate": starttime, "ExpirationDate": endtime})
+
+        conn = http.client.HTTPSConnection(
+            sf_instance.instance_url.replace("https://", "")
+        )
         conn.request(
-            "GET",
-            '/services/data/v64.0/tooling/executeAnonymous/?anonymousBody=Long%20currentUnixTime%20%3D%20DateTime.now().getTime()%20%2F%201000%3B',
+            "PATCH",
+            f"/services/data/v64.0/tooling/sobjects/TraceFlag/{traceflag_id}",
+            body=payload,
             headers={
                 "Authorization": f"Bearer {sf_instance.access_token}",
-                "Content-Type": "application/json"
-            }
+                "Content-Type": "application/json",
+            },
         )
         response = conn.getresponse()
-        if response.status != http.client.OK:
-            pytest.fail(f"Failed to create Apex logs: {response.reason}")
-        if already_executed:
-            pytest.fail("ApexLog creation failed, cannot evaluate Apex log test.")
-        return test_debug_cleanup(sf_instance, already_executed=True)
+        resp_body = response.read().decode()
 
-    sf_instance.debug_cleanup(apex_logs=True)
+        if response.status not in (200, 204):
+            pytest.fail(
+                f"Failed to update TraceFlag: {response.reason} | Body: {resp_body}"
+            )
 
-    apex_logs = sf_instance.query("SELECT Id FROM ApexLog LIMIT 1")
-    apex_log_count = len(apex_logs.get("records", []))
-    assert apex_log_count == 0, "Apex logs were not cleaned up successfully."
+    # Now generate an Apex log
+    anonymous_body = f"System.debug('Hello from {sf_instance.user_agent}! :)');"
+    encoded_body = quote(anonymous_body, safe="")
+    conn = http.client.HTTPSConnection(sf_instance.instance_url.replace("https://", ""))
+    conn.request(
+        "GET",
+        f"/services/data/v64.0/tooling/executeAnonymous/?anonymousBody={encoded_body}",
+        headers={
+            "Authorization": f"Bearer {sf_instance.access_token}",
+            "Content-Type": "application/json",
+        },
+    )
+    response = conn.getresponse()
+    if response.status != 200:
+        pytest.fail(f"Failed to execute anonymous Apex: {response.reason}")
+
+    if already_executed:
+        pytest.fail(
+            "ApexLog creation failed or already attempted. Skipping recursion to avoid infinite loop."
+        )
+
+    sleep(1)  # Race condition mitigation
+    return test_debug_cleanup(sf_instance, already_executed=True)

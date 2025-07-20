@@ -998,9 +998,10 @@ class SFAuth:
 
         return combined_response or None
 
-    def _gen_soap_envelope(self, header: str, body: str) -> str:
-        """Generates a full SOAP envelope with all required namespaces for Salesforce Enterprise API."""
-        return (
+    def _gen_soap_envelope(self, header: str, body: str, type: str) -> str:
+        """Generates a full SOAP envelope with all required namespaces for Salesforce API."""
+        if type == "enterprise":
+            return (
             '<?xml version="1.0" encoding="UTF-8"?>'
             "<soapenv:Envelope "
             'xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" '
@@ -1011,8 +1012,24 @@ class SFAuth:
             f"{header}{body}"
             "</soapenv:Envelope>"
         )
+        elif type == "tooling":
+            return (
+            '<?xml version="1.0" encoding="UTF-8"?>'
+            "<soapenv:Envelope "
+            'xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" '
+            'xmlns:xsd="http://www.w3.org/2001/XMLSchema" '
+            'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" '
+            'xmlns="urn:tooling.soap.sforce.com" '
+            'xmlns:mns="urn:metadata.tooling.soap.sforce.com" '
+            'xmlns:sf="urn:sobject.tooling.soap.sforce.com">'
+            f"{header}{body}"
+            "</soapenv:Envelope>"
+        )
+        raise ValueError(
+            f"Unsupported API type: {type}. Must be 'enterprise' or 'tooling'."
+        )
 
-    def _gen_soap_header(self):
+    def _gen_soap_header(self) -> str:
         """This function generates the header for the SOAP request."""
         headers = self._get_common_headers()
         session_id = headers["Authorization"].split(" ")[1]
@@ -1100,7 +1117,7 @@ class SFAuth:
         insert_list: List[Dict[str, Any]],
         batch_size: int = 200,
         max_workers: int = None,
-        api_type: Literal["enterprise", "tooling", "metadata"] = "enterprise",
+        api_type: Literal["enterprise", "tooling"] = "enterprise",
     ) -> Optional[Dict[str, Any]]:
         """
         Execute the Insert API to insert multiple records via SOAP calls.
@@ -1117,14 +1134,13 @@ class SFAuth:
             endpoint += f"c/{self.api_version}"
         elif api_type == "tooling":
             endpoint += f"T/{self.api_version}"
-        elif api_type == "metadata":
-            endpoint += f"m/{self.api_version}"
         else:
             logger.error(
-                "Invalid API type: %s. Must be one of: 'enterprise', 'tooling', 'metadata'.",
+                "Invalid API type: %s. Must be one of: 'enterprise', 'tooling'.",
                 api_type,
             )
             return None
+        endpoint = endpoint.replace('/v', '/')  # handle API versioning in the endpoint
 
         if isinstance(insert_list, dict):
             insert_list = [insert_list]
@@ -1137,7 +1153,7 @@ class SFAuth:
         def insert_chunk(chunk: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
             header = self._gen_soap_header()
             body = self._gen_soap_body(sobject=sobject, method="create", data=chunk)
-            envelope = self._gen_soap_envelope(header, body)
+            envelope = self._gen_soap_envelope(header=header, body=body, type=api_type)
             soap_headers = self._get_common_headers().copy()
             soap_headers["Content-Type"] = "text/xml; charset=UTF-8"
             soap_headers["SOAPAction"] = '""'
