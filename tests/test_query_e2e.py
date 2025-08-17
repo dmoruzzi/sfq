@@ -32,7 +32,7 @@ def auth_manager():
     return AuthManager(
         instance_url=os.getenv("SF_INSTANCE_URL"),
         client_id=os.getenv("SF_CLIENT_ID"),
-        client_secret=os.getenv("SF_CLIENT_SECRET"),
+        client_secret=os.getenv("SF_CLIENT_SECRET").strip(),
         refresh_token=os.getenv("SF_REFRESH_TOKEN"),
     )
 
@@ -52,7 +52,7 @@ def sf_instance():
     sf = SFAuth(
         instance_url=os.getenv("SF_INSTANCE_URL"),
         client_id=os.getenv("SF_CLIENT_ID"),
-        client_secret=os.getenv("SF_CLIENT_SECRET"),
+        client_secret=os.getenv("SF_CLIENT_SECRET").strip(),
         refresh_token=os.getenv("SF_REFRESH_TOKEN"),
     )
     return sf
