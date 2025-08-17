@@ -42,7 +42,7 @@ __all__ = [
     "__version__",
 ]
 
-__version__ = "0.0.32"
+__version__ = "0.0.33"
 """
 ### `__version__`
 
@@ -66,7 +66,7 @@ class SFAuth:
         access_token: Optional[str] = None,
         token_expiration_time: Optional[float] = None,
         token_lifetime: int = 15 * 60,
-        user_agent: str = "sfq/0.0.32",
+        user_agent: str = "sfq/0.0.33",
         sforce_client: str = "_auto",
         proxy: str = "_auto",
     ) -> None:
@@ -128,7 +128,7 @@ class SFAuth:
         )
 
         # Store version information
-        self.__version__ = "0.0.32"
+        self.__version__ = "0.0.33"
         """
         ### `__version__`
         
