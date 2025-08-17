@@ -1,14 +1,8 @@
 import os
-import sys
-from pathlib import Path
 
 import pytest
 
-# --- Setup local import path ---
-project_root = Path(__file__).resolve().parents[1]
-src_path = project_root / "src"
-sys.path.insert(0, str(src_path))
-from sfq import SFAuth  # noqa: E402
+from sfq import SFAuth
 
 
 @pytest.fixture(scope="module")
@@ -35,9 +29,10 @@ def sf_instance():
 
 def test_simple_query(sf_instance):
     """Ensure that a simple query returns the expected results."""
-    result = sf_instance.cquery({'refId': 'SELECT Id FROM Organization LIMIT 1'})
+    result = sf_instance.cquery({"refId": "SELECT Id FROM Organization LIMIT 1"})
 
     sf_api_version = sf_instance.api_version
+    org_id = sf_instance.org_id
     expected = {
         "totalSize": 1,
         "done": True,
@@ -45,9 +40,9 @@ def test_simple_query(sf_instance):
             {
                 "attributes": {
                     "type": "Organization",
-                    "url": f"/services/data/{sf_api_version}/sobjects/Organization/00Daj000004ej9WEAQ",
+                    "url": f"/services/data/{sf_api_version}/sobjects/Organization/{org_id}",
                 },
-                "Id": "00Daj000004ej9WEAQ",
+                "Id": f"{org_id}",
             }
         ],
     }
@@ -57,9 +52,18 @@ def test_simple_query(sf_instance):
     assert len(result["refId"]["records"]) == 1
     assert result["refId"] == expected
 
+
 def test_cquery_with_pagination(sf_instance):
     """Ensure that query pagination is functioning"""
-    result = sf_instance.cquery({"refId": "SELECT Id FROM FeedComment LIMIT 2200"})
+    result = sf_instance.cquery(
+        {
+            "refId": "SELECT Id FROM FeedComment LIMIT 2200",
+            "refCount": "SELECT COUNT() FROM FeedComment LIMIT 2200",
+        }
+    )
+
+    if result["refCount"]["totalSize"] != 2200:
+        pytest.skip("Not enough records to evaluate cquery pagination")
 
     assert len(result["refId"]["records"]) == 2200
     assert result["refId"]["totalSize"] == 2200

@@ -2,90 +2,56 @@
 .. include:: ../../README.md
 """
 
-import base64
-import http.client
-import json
-import logging
-import os
-import re
-import time
-import warnings
 import webbrowser
-import xml.etree.ElementTree as ET
-from collections import OrderedDict
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any, Dict, Iterable, List, Literal, Optional, Tuple
-from urllib.parse import quote, urlparse
+from typing import Any, Dict, Iterable, List, Literal, Optional
+from urllib.parse import quote
 
-__all__ = ["SFAuth"]  # https://pdoc.dev/docs/pdoc.html#control-what-is-documented
+# Import new modular components
+from .auth import AuthManager
+from .crud import CRUDClient
 
-TRACE = 5
-logging.addLevelName(TRACE, "TRACE")
+# Re-export all public classes and functions for backward compatibility
+from .exceptions import (
+    APIError,
+    AuthenticationError,
+    ConfigurationError,
+    CRUDError,
+    HTTPError,
+    QueryError,
+    SFQException,
+    SOAPError,
+)
+from .http_client import HTTPClient
+from .query import QueryClient
+from .soap import SOAPClient
+from .utils import get_logger
 
+# Define public API for documentation tools
+__all__ = [
+    "SFAuth",
+    # Exception classes
+    "SFQException",
+    "AuthenticationError",
+    "APIError",
+    "QueryError",
+    "CRUDError",
+    "SOAPError",
+    "HTTPError",
+    "ConfigurationError",
+    # Package metadata
+    "__version__",
+]
 
-def trace(self: logging.Logger, message: str, *args: Any, **kwargs: Any) -> None:
-    """Custom TRACE level logging function with redaction."""
+__version__ = "0.0.32"
+"""
+### `__version__`
 
-    def _redact_sensitive(data: Any) -> Any:
-        """Redacts sensitive keys from a dictionary, query string, or sessionId."""
-        REDACT_VALUE = "*" * 8
-        REDACT_KEYS = [
-            "access_token",
-            "authorization",
-            "set-cookie",
-            "cookie",
-            "refresh_token",
-            "client_secret",
-            "sessionid",
-        ]
-        if isinstance(data, dict):
-            return {
-                k: (REDACT_VALUE if k.lower() in REDACT_KEYS else v)
-                for k, v in data.items()
-            }
-        elif isinstance(data, (list, tuple)):
-            return type(data)(
-                (
-                    (item[0], REDACT_VALUE)
-                    if isinstance(item, tuple) and item[0].lower() in REDACT_KEYS
-                    else item
-                    for item in data
-                )
-            )
-        elif isinstance(data, str):
-            if "<sessionId>" in data and "</sessionId>" in data:
-                data = re.sub(
-                    r"(<sessionId>)(.*?)(</sessionId>)",
-                    r"\1{}\3".format(REDACT_VALUE),
-                    data,
-                )
-            parts = data.split("&")
-            for i, part in enumerate(parts):
-                if "=" in part:
-                    key, value = part.split("=", 1)
-                    if key.lower() in REDACT_KEYS:
-                        parts[i] = f"{key}={REDACT_VALUE}"
-            return "&".join(parts)
-        return data
-
-    redacted_args = args
-    if args:
-        first = args[0]
-        if isinstance(first, str):
-            try:
-                loaded = json.loads(first)
-                first = loaded
-            except (json.JSONDecodeError, TypeError):
-                pass
-        redacted_first = _redact_sensitive(first)
-        redacted_args = (redacted_first,) + args[1:]
-
-    if self.isEnabledFor(TRACE):
-        self._log(TRACE, message, redacted_args, **kwargs)
-
-
-logging.Logger.trace = trace
-logger = logging.getLogger("sfq")
+**The version of the sfq library.**
+- Schema: `MAJOR.MINOR.PATCH`
+- Used for debugging and compatibility checks
+- Updated to reflect the current library version via CI/CD automation
+"""
+logger = get_logger("sfq")
 
 
 class SFAuth:
@@ -93,8 +59,8 @@ class SFAuth:
         self,
         instance_url: str,
         client_id: str,
-        refresh_token: str,  # client_secret & refresh_token will swap positions 2025-AUG-1
-        client_secret: str = "_deprecation_warning",  # mandatory after 2025-AUG-1
+        client_secret: str,
+        refresh_token: str,
         api_version: str = "v64.0",
         token_endpoint: str = "/services/oauth2/token",
         access_token: Optional[str] = None,
@@ -120,7 +86,61 @@ class SFAuth:
         :param sforce_client: Custom Application Identifier.
         :param proxy: The proxy configuration, "_auto" to use environment.
         """
-        self.instance_url = self._format_instance_url(instance_url)
+        # Initialize the AuthManager with all authentication-related parameters
+        self._auth_manager = AuthManager(
+            instance_url=instance_url,
+            client_id=client_id,
+            refresh_token=refresh_token,
+            client_secret=str(client_secret).strip(),
+            api_version=api_version,
+            token_endpoint=token_endpoint,
+            access_token=access_token,
+            token_expiration_time=token_expiration_time,
+            token_lifetime=token_lifetime,
+            proxy=proxy,
+        )
+
+        # Initialize the HTTPClient with auth manager and user agent settings
+        self._http_client = HTTPClient(
+            auth_manager=self._auth_manager,
+            user_agent=user_agent,
+            sforce_client=sforce_client,
+            high_api_usage_threshold=80,
+        )
+
+        # Initialize the SOAPClient
+        self._soap_client = SOAPClient(
+            http_client=self._http_client,
+            api_version=api_version,
+        )
+
+        # Initialize the QueryClient
+        self._query_client = QueryClient(
+            http_client=self._http_client,
+            api_version=api_version,
+        )
+
+        # Initialize the CRUDClient
+        self._crud_client = CRUDClient(
+            http_client=self._http_client,
+            soap_client=self._soap_client,
+            api_version=api_version,
+        )
+
+        # Store version information
+        self.__version__ = "0.0.32"
+        """
+        ### `__version__`
+        
+        **The version of the sfq library.**
+        - Schema: `MAJOR.MINOR.PATCH`
+        - Used for debugging and compatibility checks
+        - Updated to reflect the current library version via CI/CD automation
+        """
+
+    # Property delegation to preserve all existing public attributes
+    @property
+    def instance_url(self) -> str:
         """
         ### `instance_url`
         **The fully qualified Salesforce instance URL.**
@@ -133,8 +153,10 @@ class SFAuth:
         - `https://sfq.my.salesforce.com`
         - `https://sfq--dev.sandbox.my.salesforce.com`
         """
+        return self._auth_manager.instance_url
 
-        self.client_id = client_id
+    @property
+    def client_id(self) -> str:
         """
         ### `client_id`
         **The OAuth client ID.**
@@ -143,8 +165,10 @@ class SFAuth:
         - If using **Salesforce CLI**, this is `"PlatformCLI"`
         - For other apps, find this value in the **Connected App details**
         """
+        return self._auth_manager.client_id
 
-        self.client_secret = client_secret
+    @property
+    def client_secret(self) -> str:
         """
         ### `client_secret`
         **The OAuth client secret.**
@@ -153,8 +177,10 @@ class SFAuth:
         - For **Salesforce CLI**, this is typically an empty string `""`
         - For custom apps, locate it in the **Connected App settings**
         """
+        return self._auth_manager.client_secret
 
-        self.refresh_token = refresh_token
+    @property
+    def refresh_token(self) -> str:
         """
         ### `refresh_token`
         **The OAuth refresh token.**
@@ -169,20 +195,11 @@ class SFAuth:
         * For other apps, this value is returned during the **OAuth authorization flow**
             * 📖 [Salesforce OAuth Flows Documentation](https://help.salesforce.com/s/articleView?id=xcloud.remoteaccess_oauth_flows.htm&type=5)
         """
+        return self._auth_manager.refresh_token
 
-        self.__version__ = "0.0.32"
+    @property
+    def api_version(self) -> str:
         """
-        ### `__version__`
-        
-        **The version of the sfq library.**
-        - Schema: `MAJOR.MINOR.PATCH`
-        - Used for debugging and compatibility checks
-        - Updated to reflect the current library version via CI/CD automation
-        """
-
-        self.api_version = api_version
-        """
-
         ### `api_version`
 
         **The Salesforce API version to use.**
@@ -190,10 +207,11 @@ class SFAuth:
         * Must include the `"v"` prefix (e.g., `"v64.0"`)
         * Periodically updated to align with new Salesforce releases
         """
+        return self._auth_manager.api_version
 
-        self.token_endpoint = token_endpoint
+    @property
+    def token_endpoint(self) -> str:
         """
-
         ### `token_endpoint`
 
         **The token URL path for OAuth authentication.**
@@ -201,11 +219,12 @@ class SFAuth:
         * Defaults to Salesforce's `.well-known/openid-configuration` for *token* endpoint
         * Should start with a **leading slash**, e.g., `/services/oauth2/token`
         * No customization is typical, but internal designs may use custom ApexRest endpoints
-          """
-
-        self.access_token = access_token
         """
+        return self._auth_manager.token_endpoint
 
+    @property
+    def access_token(self) -> Optional[str]:
+        """
         ### `access_token`
 
         **The current OAuth access token.**
@@ -213,43 +232,49 @@ class SFAuth:
         * Used to authorize API requests
         * Does not include Bearer prefix, strictly the token
         """
+        # refresh token if required
 
-        self.token_expiration_time = token_expiration_time
+        return self._auth_manager.access_token
+
+    @property
+    def token_expiration_time(self) -> Optional[float]:
         """
-
         ### `token_expiration_time`
 
         **Unix timestamp (in seconds) for access token expiration.**
 
         * Managed automatically by the library
         * Useful for checking when to refresh the token
-          """
-
-        self.token_lifetime = token_lifetime
         """
+        return self._auth_manager.token_expiration_time
 
+    @property
+    def token_lifetime(self) -> int:
+        """
         ### `token_lifetime`
 
         **Access token lifespan in seconds.**
 
         * Determined by your Connected App's session policies
         * Used to calculate when to refresh the token
-          """
-
-        self.user_agent = user_agent
         """
+        return self._auth_manager.token_lifetime
 
+    @property
+    def user_agent(self) -> str:
+        """
         ### `user_agent`
 
         **Custom User-Agent string for API calls.**
 
         * Included in HTTP request headers
         * Useful for identifying traffic in Salesforce `ApiEvent` logs
-          """
-
-        self.sforce_client = str(sforce_client).replace(",", "")
         """
+        return self._http_client.user_agent
 
+    @property
+    def sforce_client(self) -> str:
+        """
         ### `sforce_client`
 
         **Custom application identifier.**
@@ -258,265 +283,52 @@ class SFAuth:
         * Useful for identifying traffic in Event Log Files
         * Commas are not allowed; will be stripped
         """
+        return self._http_client.sforce_client
 
-        self._auto_configure_proxy(proxy)
-        self._high_api_usage_threshold = 80
-
-        if sforce_client == "_auto":
-            self.sforce_client = user_agent
-
-        if self.client_secret == "_deprecation_warning":
-            warnings.warn(
-                "The 'client_secret' parameter will be mandatory and positional arguments will change after 1 August 2025. "
-                "Please ensure explicit argument assignment and 'client_secret' inclusion when initializing the SFAuth object.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-
-            logger.debug(
-                "Will be SFAuth(instance_url, client_id, client_secret, refresh_token) starting 1 August 2025... but please just use named arguments.."
-            )
-
-    def _format_instance_url(self, instance_url) -> str:
+    @property
+    def proxy(self) -> Optional[str]:
         """
-        HTTPS is mandatory with Spring '21 release,
-        This method ensures that the instance URL is formatted correctly.
+        ### `proxy`
 
-        :param instance_url: The Salesforce instance URL.
-        :return: The formatted instance URL.
+        **The proxy configuration.**
+
+        * Proxy URL for HTTP requests
+        * None if no proxy is configured
         """
-        if instance_url.startswith("https://"):
-            return instance_url
-        if instance_url.startswith("http://"):
-            return instance_url.replace("http://", "https://")
-        return f"https://{instance_url}"
+        return self._auth_manager.get_proxy_config()
 
-    def _auto_configure_proxy(self, proxy: str) -> None:
+    @property
+    def org_id(self) -> Optional[str]:
         """
-        Automatically configure the proxy based on the environment or provided value.
+        ### `org_id`
+
+        **The Salesforce organization ID.**
+
+        * Extracted from token response during authentication
+        * Available after successful token refresh
         """
-        if proxy == "_auto":
-            self.proxy = os.environ.get("https_proxy")  # HTTPs is mandatory
-            if self.proxy:
-                logger.debug("Auto-configured proxy: %s", self.proxy)
-        else:
-            self.proxy = proxy
-            logger.debug("Using configured proxy: %s", self.proxy)
+        return self._auth_manager.org_id
 
-    def _prepare_payload(self) -> Dict[str, Optional[str]]:
+    @property
+    def user_id(self) -> Optional[str]:
         """
-        Prepare the payload for the token request.
+        ### `user_id`
 
-        This method constructs a dictionary containing the necessary parameters
-        for a token request using the refresh token grant type. It includes
-        the client ID, client secret, and refresh token if they are available.
+        **The Salesforce user ID.**
 
-        Returns:
-            Dict[str, Optional[str]]: A dictionary containing the payload for the token request.
+        * Extracted from token response during authentication
+        * Available after successful token refresh
         """
-        payload = {
-            "grant_type": "refresh_token",
-            "client_id": self.client_id,
-            "client_secret": self.client_secret,
-            "refresh_token": self.refresh_token,
-        }
+        return self._auth_manager.user_id
 
-        if self.client_secret == "_deprecation_warning":
-            logger.warning(
-                "The SFQ library is making a breaking change (2025-AUG-1) to require the 'client_secret' parameter to be assigned when initializing the SFAuth object. "
-                "In addition, positional arguments will change. Please ensure explicit argument assignment and 'client_secret' inclusion when initializing the SFAuth object to avoid impact."
-            )
-            payload.pop("client_secret")
-
-        if not self.client_secret:
-            payload.pop("client_secret")
-
-        return payload
-
-    def _create_connection(self, netloc: str) -> http.client.HTTPConnection:
-        """
-        Create a connection using HTTP or HTTPS, with optional proxy support.
-
-        :param netloc: The target host and port from the parsed instance URL.
-        :return: An HTTP(S)Connection object.
-        """
-        if self.proxy:
-            proxy_url = urlparse(self.proxy)
-            logger.trace("Using proxy: %s", self.proxy)
-            conn = http.client.HTTPSConnection(proxy_url.hostname, proxy_url.port)
-            conn.set_tunnel(netloc)
-            logger.trace("Using proxy tunnel to %s", netloc)
-        else:
-            conn = http.client.HTTPSConnection(netloc)
-            logger.trace("Direct connection to %s", netloc)
-        return conn
-
-    def _send_request(
-        self,
-        method: str,
-        endpoint: str,
-        headers: Dict[str, str],
-        body: Optional[str] = None,
-    ) -> Tuple[Optional[int], Optional[str]]:
-        """
-        Unified request method with built-in logging and error handling.
-
-        :param method: HTTP method to use.
-        :param endpoint: Target API endpoint.
-        :param headers: HTTP headers.
-        :param body: Optional request body.
-        :param timeout: Optional timeout in seconds.
-        :return: Tuple of HTTP status code and response body as a string.
-        """
-        parsed_url = urlparse(self.instance_url)
-        conn = self._create_connection(parsed_url.netloc)
-
-        try:
-            logger.trace("Request method: %s", method)
-            logger.trace("Request endpoint: %s", endpoint)
-            logger.trace("Request headers: %s", headers)
-            if body:
-                logger.trace("Request body: %s", body)
-
-            conn.request(method, endpoint, body=body, headers=headers)
-            response = conn.getresponse()
-            self._http_resp_header_logic(response)
-
-            data = response.read().decode("utf-8")
-            logger.trace("Response status: %s", response.status)
-            logger.trace("Response body: %s", data)
-            return response.status, data
-
-        except Exception as err:
-            logger.exception("HTTP request failed: %s", err)
-            return None, None
-
-        finally:
-            logger.trace("Closing connection...")
-            conn.close()
-
-    def _new_token_request(self, payload: Dict[str, str]) -> Optional[Dict[str, Any]]:
-        """
-        Perform a new token request using the provided payload.
-
-        :param payload: Payload for the token request.
-        :return: Parsed JSON response or None on failure.
-        """
-        headers = self._get_common_headers(recursive_call=True)
-        headers["Content-Type"] = "application/x-www-form-urlencoded"
-        del headers["Authorization"]
-
-        body = "&".join(f"{key}={quote(str(value))}" for key, value in payload.items())
-        status, data = self._send_request("POST", self.token_endpoint, headers, body)
-
-        if status == 200:
-            logger.trace("Token refresh successful.")
-            return json.loads(data)
-
-        if status:
-            logger.error("Token refresh failed: %s", status)
-            logger.debug("Response body: %s", data)
-
-        return None
-
-    def _http_resp_header_logic(self, response: http.client.HTTPResponse) -> None:
-        """
-        Perform additional logic based on the HTTP response headers.
-
-        :param response: The HTTP response object.
-        :return: None
-        """
-        logger.trace(
-            "Response status: %s, reason: %s", response.status, response.reason
-        )
-        headers = response.getheaders()
-        headers_list = [(k, v) for k, v in headers if not v.startswith("BrowserId=")]
-        logger.trace("Response headers: %s", headers_list)
-        for key, value in headers_list:
-            if key == "Sforce-Limit-Info":
-                current_api_calls = int(value.split("=")[1].split("/")[0])
-                maximum_api_calls = int(value.split("=")[1].split("/")[1])
-                usage_percentage = round(current_api_calls / maximum_api_calls * 100, 2)
-                if usage_percentage > self._high_api_usage_threshold:
-                    logger.warning(
-                        "High API usage: %s/%s (%s%%)",
-                        current_api_calls,
-                        maximum_api_calls,
-                        usage_percentage,
-                    )
-                else:
-                    logger.debug(
-                        "API usage: %s/%s (%s%%)",
-                        current_api_calls,
-                        maximum_api_calls,
-                        usage_percentage,
-                    )
-
+    # Token refresh method that delegates to HTTP client
     def _refresh_token_if_needed(self) -> Optional[str]:
         """
         Automatically refresh the access token if it has expired or is missing.
 
         :return: A valid access token or None if refresh failed.
         """
-        if self.access_token and not self._is_token_expired():
-            return self.access_token
-
-        logger.trace("Access token expired or missing, refreshing...")
-        payload = self._prepare_payload()
-        token_data = self._new_token_request(payload)
-
-        if token_data:
-            self.access_token = token_data.get("access_token")
-            issued_at = token_data.get("issued_at")
-
-            try:
-                self.org_id = token_data.get("id").split("/")[4]
-                self.user_id = token_data.get("id").split("/")[5]
-                logger.trace(
-                    "Authenticated as user %s for org %s (%s)",
-                    self.user_id,
-                    self.org_id,
-                    token_data.get("instance_url"),
-                )
-            except (IndexError, KeyError):
-                logger.error("Failed to extract org/user IDs from token response.")
-
-            if self.access_token and issued_at:
-                self.token_expiration_time = int(issued_at) + self.token_lifetime
-                logger.trace("New token expires at %s", self.token_expiration_time)
-                return self.access_token
-
-        logger.error("Failed to obtain access token.")
-        return None
-
-    def _get_common_headers(self, recursive_call: bool = False) -> Dict[str, str]:
-        """
-        Generate common headers for API requests.
-
-        :return: A dictionary of common headers.
-        """
-        if not recursive_call:
-            self._refresh_token_if_needed()
-
-        return {
-            "Authorization": f"Bearer {self.access_token}",
-            "User-Agent": self.user_agent,
-            "Sforce-Call-Options": f"client={self.sforce_client}",
-            "Accept": "application/json",
-            "Content-Type": "application/json",
-        }
-
-    def _is_token_expired(self) -> bool:
-        """
-        Check if the access token has expired.
-
-        :return: True if token is expired or missing, False otherwise.
-        """
-        try:
-            return time.time() >= float(self.token_expiration_time)
-        except (TypeError, ValueError):
-            logger.warning("Token expiration check failed. Treating token as expired.")
-            return True
+        return self._http_client.refresh_token_and_update_auth()
 
     def read_static_resource_name(
         self, resource_name: str, namespace: Optional[str] = None
@@ -528,25 +340,7 @@ class SFAuth:
         :param namespace: Namespace of the static resource to read (default is None).
         :return: Static resource content or None on failure.
         """
-        _safe_resource_name = quote(resource_name, safe="")
-        query = f"SELECT Id FROM StaticResource WHERE Name = '{_safe_resource_name}'"
-        if namespace:
-            namespace = quote(namespace, safe="")
-            query += f" AND NamespacePrefix = '{namespace}'"
-        query += " LIMIT 1"
-        _static_resource_id_response = self.query(query)
-
-        if (
-            _static_resource_id_response
-            and _static_resource_id_response.get("records")
-            and len(_static_resource_id_response["records"]) > 0
-        ):
-            return self.read_static_resource_id(
-                _static_resource_id_response["records"][0].get("Id")
-            )
-
-        logger.error(f"Failed to read static resource with name {_safe_resource_name}.")
-        return None
+        return self._crud_client.read_static_resource_name(resource_name, namespace)
 
     def read_static_resource_id(self, resource_id: str) -> Optional[str]:
         """
@@ -555,16 +349,7 @@ class SFAuth:
         :param resource_id: ID of the static resource to read.
         :return: Static resource content or None on failure.
         """
-        endpoint = f"/services/data/{self.api_version}/sobjects/StaticResource/{resource_id}/Body"
-        headers = self._get_common_headers()
-        status, data = self._send_request("GET", endpoint, headers)
-
-        if status == 200:
-            logger.debug("Static resource fetched successfully.")
-            return data
-
-        logger.error("Failed to fetch static resource: %s", status)
-        return None
+        return self._crud_client.read_static_resource_id(resource_id)
 
     def update_static_resource_name(
         self, resource_name: str, data: str, namespace: Optional[str] = None
@@ -577,28 +362,9 @@ class SFAuth:
         :param namespace: Optional namespace to search for the static resource.
         :return: Static resource content or None on failure.
         """
-        safe_resource_name = quote(resource_name, safe="")
-        query = f"SELECT Id FROM StaticResource WHERE Name = '{safe_resource_name}'"
-        if namespace:
-            namespace = quote(namespace, safe="")
-            query += f" AND NamespacePrefix = '{namespace}'"
-        query += " LIMIT 1"
-
-        static_resource_id_response = self.query(query)
-
-        if (
-            static_resource_id_response
-            and static_resource_id_response.get("records")
-            and len(static_resource_id_response["records"]) > 0
-        ):
-            return self.update_static_resource_id(
-                static_resource_id_response["records"][0].get("Id"), data
-            )
-
-        logger.error(
-            f"Failed to update static resource with name {safe_resource_name}."
+        return self._crud_client.update_static_resource_name(
+            resource_name, data, namespace
         )
-        return None
 
     def update_static_resource_id(
         self, resource_id: str, data: str
@@ -610,31 +376,7 @@ class SFAuth:
         :param data: Content to update the static resource with.
         :return: Parsed JSON response or None on failure.
         """
-        payload = {"Body": base64.b64encode(data.encode("utf-8")).decode("utf-8")}
-
-        endpoint = (
-            f"/services/data/{self.api_version}/sobjects/StaticResource/{resource_id}"
-        )
-        headers = self._get_common_headers()
-
-        status_code, response_data = self._send_request(
-            method="PATCH",
-            endpoint=endpoint,
-            headers=headers,
-            body=json.dumps(payload),
-        )
-
-        if status_code == 200:
-            logger.debug("Patch Static Resource request successful.")
-            return json.loads(response_data)
-
-        logger.error(
-            "Patch Static Resource API request failed: %s",
-            status_code,
-        )
-        logger.debug("Response body: %s", response_data)
-
-        return None
+        return self._crud_client.update_static_resource_id(resource_id, data)
 
     def limits(self) -> Optional[Dict[str, Any]]:
         """
@@ -643,50 +385,20 @@ class SFAuth:
         :return: Parsed JSON response or None on failure.
         """
         endpoint = f"/services/data/{self.api_version}/limits"
-        headers = self._get_common_headers()
 
-        status, data = self._send_request("GET", endpoint, headers)
+        # Ensure we have a valid token
+        self._refresh_token_if_needed()
+
+        status, data = self._http_client.send_authenticated_request("GET", endpoint)
 
         if status == 200:
+            import json
+
             logger.debug("Limits fetched successfully.")
             return json.loads(data)
 
         logger.error("Failed to fetch limits: %s", status)
         return None
-
-    def _paginate_query_result(self, initial_result: dict, headers: dict) -> dict:
-        """
-        Helper to paginate Salesforce query results (for both query and cquery).
-        Returns a dict with all records combined.
-        """
-        records = list(initial_result.get("records", []))
-        done = initial_result.get("done", True)
-        next_url = initial_result.get("nextRecordsUrl")
-        total_size = initial_result.get("totalSize", len(records))
-
-        while not done and next_url:
-            status_code, data = self._send_request(
-                method="GET",
-                endpoint=next_url,
-                headers=headers,
-            )
-            if status_code == 200:
-                next_result = json.loads(data)
-                records.extend(next_result.get("records", []))
-                done = next_result.get("done", True)
-                next_url = next_result.get("nextRecordsUrl")
-                total_size = next_result.get("totalSize", total_size)
-            else:
-                logger.error("Failed to fetch next records: %s", data)
-                break
-
-        paginated = dict(initial_result)
-        paginated["records"] = records
-        paginated["done"] = done
-        paginated["totalSize"] = total_size
-        if "nextRecordsUrl" in paginated:
-            del paginated["nextRecordsUrl"]
-        return paginated
 
     def query(self, query: str, tooling: bool = False) -> Optional[Dict[str, Any]]:
         """
@@ -696,39 +408,7 @@ class SFAuth:
         :param tooling: If True, use the Tooling API endpoint.
         :return: Parsed JSON response or None on failure.
         """
-        endpoint = f"/services/data/{self.api_version}/"
-        endpoint += "tooling/query" if tooling else "query"
-        query_string = f"?q={quote(query)}"
-        endpoint += query_string
-        headers = self._get_common_headers()
-
-        try:
-            status_code, data = self._send_request(
-                method="GET",
-                endpoint=endpoint,
-                headers=headers,
-            )
-            if status_code == 200:
-                result = json.loads(data)
-                paginated = self._paginate_query_result(result, headers)
-                logger.debug(
-                    "Query successful, returned %s records: %r",
-                    paginated.get("totalSize"),
-                    query,
-                )
-                logger.trace("Query full response: %s", paginated)
-                return paginated
-            else:
-                logger.debug("Query failed: %r", query)
-                logger.error(
-                    "Query failed with HTTP status %s",
-                    status_code,
-                )
-                logger.debug("Query response: %s", data)
-        except Exception as err:
-            logger.exception("Exception during query: %s", err)
-
-        return None
+        return self._query_client.query(query, tooling)
 
     def tooling_query(self, query: str) -> Optional[Dict[str, Any]]:
         """
@@ -737,7 +417,7 @@ class SFAuth:
         :param query: The SOQL query string.
         :return: Parsed JSON response or None on failure.
         """
-        return self.query(query, tooling=True)
+        return self._query_client.tooling_query(query)
 
     def get_sobject_prefixes(
         self, key_type: Literal["id", "name"] = "id"
@@ -748,60 +428,13 @@ class SFAuth:
         :param key_type: The type of key to return. Either 'id' (prefix) or 'name' (sObject).
         :return: A dictionary mapping key prefixes to sObject names or None on failure.
         """
-        valid_key_types = {"id", "name"}
-        if key_type not in valid_key_types:
-            logger.error(
-                "Invalid key type: %s, must be one of: %s",
-                key_type,
-                ", ".join(valid_key_types),
-            )
-            return None
-
-        endpoint = f"/services/data/{self.api_version}/sobjects/"
-        headers = self._get_common_headers()
-
-        prefixes = {}
-
-        try:
-            logger.trace("Request endpoint: %s", endpoint)
-            logger.trace("Request headers: %s", headers)
-
-            status_code, data = self._send_request(
-                method="GET",
-                endpoint=endpoint,
-                headers=headers,
-            )
-
-            if status_code == 200:
-                logger.debug("Key prefixes API request successful.")
-                logger.trace("Response body: %s", data)
-                for sobject in json.loads(data)["sobjects"]:
-                    key_prefix = sobject.get("keyPrefix")
-                    name = sobject.get("name")
-                    if not key_prefix or not name:
-                        continue
-
-                    if key_type == "id":
-                        prefixes[key_prefix] = name
-                    elif key_type == "name":
-                        prefixes[name] = key_prefix
-
-                logger.debug("Key prefixes: %s", prefixes)
-                return prefixes
-
-            logger.error(
-                "Key prefixes API request failed: %s",
-                status_code,
-            )
-            logger.debug("Response body: %s", data)
-
-        except Exception as err:
-            logger.exception("Exception during key prefixes API request: %s", err)
-
-        return None
+        return self._query_client.get_sobject_prefixes(key_type)
 
     def cquery(
-        self, query_dict: dict[str, str], batch_size: int = 25, max_workers: int = None
+        self,
+        query_dict: Dict[str, str],
+        batch_size: int = 25,
+        max_workers: Optional[int] = None,
     ) -> Optional[Dict[str, Any]]:
         """
         Execute multiple SOQL queries using the Composite Batch API with threading to reduce network overhead.
@@ -814,80 +447,13 @@ class SFAuth:
         :param max_workers: The maximum number of threads to spawn for concurrent execution (default is None).
         :return: Dict mapping the original keys to their corresponding batch response or None on failure.
         """
-        if not query_dict:
-            logger.warning("No queries to execute.")
-            return None
-
-        def _execute_batch(batch_keys, batch_queries):
-            endpoint = f"/services/data/{self.api_version}/composite/batch"
-            headers = self._get_common_headers()
-
-            payload = {
-                "haltOnError": False,
-                "batchRequests": [
-                    {
-                        "method": "GET",
-                        "url": f"/services/data/{self.api_version}/query?q={quote(query)}",
-                    }
-                    for query in batch_queries
-                ],
-            }
-
-            status_code, data = self._send_request(
-                method="POST",
-                endpoint=endpoint,
-                headers=headers,
-                body=json.dumps(payload),
-            )
-
-            batch_results = {}
-            if status_code == 200:
-                logger.debug("Composite query successful.")
-                logger.trace("Composite query full response: %s", data)
-                results = json.loads(data).get("results", [])
-                for i, result in enumerate(results):
-                    key = batch_keys[i]
-                    if result.get("statusCode") == 200 and "result" in result:
-                        paginated = self._paginate_query_result(
-                            result["result"], headers
-                        )
-                        batch_results[key] = paginated
-                    else:
-                        logger.error("Query failed for key %s: %s", key, result)
-                        batch_results[key] = result
-            else:
-                logger.error(
-                    "Composite query failed with HTTP status %s (%s)",
-                    status_code,
-                    data,
-                )
-                for i, key in enumerate(batch_keys):
-                    batch_results[key] = data
-                logger.trace("Composite query response: %s", data)
-
-            return batch_results
-
-        keys = list(query_dict.keys())
-        results_dict = OrderedDict()
-
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = []
-            BATCH_SIZE = batch_size
-            for i in range(0, len(keys), BATCH_SIZE):
-                batch_keys = keys[i : i + BATCH_SIZE]
-                batch_queries = [query_dict[key] for key in batch_keys]
-                futures.append(
-                    executor.submit(_execute_batch, batch_keys, batch_queries)
-                )
-
-            for future in as_completed(futures):
-                results_dict.update(future.result())
-
-        logger.trace("Composite query results: %s", results_dict)
-        return results_dict
+        return self._query_client.cquery(query_dict, batch_size, max_workers)
 
     def cdelete(
-        self, ids: Iterable[str], batch_size: int = 200, max_workers: int = None
+        self,
+        ids: Iterable[str],
+        batch_size: int = 200,
+        max_workers: Optional[int] = None,
     ) -> Optional[Dict[str, Any]]:
         """
         Execute the Collections Delete API to delete multiple records using multithreading.
@@ -897,314 +463,72 @@ class SFAuth:
         :param max_workers: The maximum number of threads to spawn for concurrent execution (default is None).
         :return: Combined JSON response from all batches or None on complete failure.
         """
-        ids = list(ids)
-        chunks = [ids[i : i + batch_size] for i in range(0, len(ids), batch_size)]
-
-        def delete_chunk(chunk: List[str]) -> Optional[Dict[str, Any]]:
-            endpoint = f"/services/data/{self.api_version}/composite/sobjects?ids={','.join(chunk)}&allOrNone=false"
-            headers = self._get_common_headers()
-
-            status_code, resp_data = self._send_request(
-                method="DELETE",
-                endpoint=endpoint,
-                headers=headers,
-            )
-
-            if status_code == 200:
-                logger.debug("Collections delete API response without errors.")
-                return json.loads(resp_data)
-            else:
-                logger.error("Collections delete API request failed: %s", status_code)
-                logger.debug("Response body: %s", resp_data)
-                return None
-
-        results = []
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = [executor.submit(delete_chunk, chunk) for chunk in chunks]
-            for future in as_completed(futures):
-                result = future.result()
-                if result:
-                    results.append(result)
-
-        combined_response = [
-            item
-            for result in results
-            for item in (result if isinstance(result, list) else [result])
-            if isinstance(result, (dict, list))
-        ]
-        return combined_response or None
+        return self._crud_client.cdelete(ids, batch_size, max_workers)
 
     def _cupdate(
-        self, update_dict: Dict[str, Any], batch_size: int = 25, max_workers: int = None
+        self,
+        update_dict: Dict[str, Any],
+        batch_size: int = 25,
+        max_workers: Optional[int] = None,
     ) -> Optional[Dict[str, Any]]:
         """
         Execute the Composite Update API to update multiple records.
 
-        :param update_dict: A dictionary of keys of records to be updated, and a dictionary of field-value pairs to be updated, with a special key '_' overriding the sObject type which is otherwise inferred from the key. Example:
-            {'001aj00000C8kJhAAJ': {'Subject': 'Easily updated via SFQ'}, '00aaj000006wtdcAAA': {'_': 'CaseComment', 'IsPublished': False}, '001aj0000002yJRCAY': {'_': 'IdeaComment', 'CommentBody': 'Hello World!'}}
+        :param update_dict: A dictionary of keys of records to be updated, and a dictionary of field-value pairs to be updated, with a special key '_' overriding the sObject type which is otherwise inferred from the key.
         :param batch_size: The number of records to update in each batch (default is 25).
+        :param max_workers: The maximum number of threads to spawn for concurrent execution (default is None).
         :return: JSON response from the update request or None on failure.
         """
-        allOrNone = False
-        endpoint = f"/services/data/{self.api_version}/composite"
+        return self._crud_client.cupdate(update_dict, batch_size, max_workers)
 
-        compositeRequest_payload = []
-        sobject_prefixes = {}
-
-        for key, record in update_dict.items():
-            sobject = record.copy().pop("_", None)
-            if not sobject and not sobject_prefixes:
-                sobject_prefixes = self.get_sobject_prefixes()
-
-            if not sobject:
-                sobject = str(sobject_prefixes.get(str(key[:3]), None))
-
-            compositeRequest_payload.append(
-                {
-                    "method": "PATCH",
-                    "url": f"/services/data/{self.api_version}/sobjects/{sobject}/{key}",
-                    "referenceId": key,
-                    "body": record,
-                }
-            )
-
-        chunks = [
-            compositeRequest_payload[i : i + batch_size]
-            for i in range(0, len(compositeRequest_payload), batch_size)
-        ]
-
-        def update_chunk(chunk: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-            payload = {"allOrNone": bool(allOrNone), "compositeRequest": chunk}
-
-            status_code, resp_data = self._send_request(
-                method="POST",
-                endpoint=endpoint,
-                headers=self._get_common_headers(),
-                body=json.dumps(payload),
-            )
-
-            if status_code == 200:
-                logger.debug("Composite update API response without errors.")
-                return json.loads(resp_data)
-            else:
-                logger.error("Composite update API request failed: %s", status_code)
-                logger.debug("Response body: %s", resp_data)
-                return None
-
-        results = []
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = [executor.submit(update_chunk, chunk) for chunk in chunks]
-            for future in as_completed(futures):
-                result = future.result()
-                if result:
-                    results.append(result)
-
-        combined_response = [
-            item
-            for result in results
-            for item in (result if isinstance(result, list) else [result])
-            if isinstance(result, (dict, list))
-        ]
-
-        return combined_response or None
-
-    def _gen_soap_envelope(self, header: str, body: str, type: str) -> str:
+    # SOAP methods delegated to SOAP client
+    def _gen_soap_envelope(self, header: str, body: str, api_type: str) -> str:
         """Generates a full SOAP envelope with all required namespaces for Salesforce API."""
-        if type == "enterprise":
-            return (
-            '<?xml version="1.0" encoding="UTF-8"?>'
-            "<soapenv:Envelope "
-            'xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" '
-            'xmlns:xsd="http://www.w3.org/2001/XMLSchema" '
-            'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" '
-            'xmlns="urn:enterprise.soap.sforce.com" '
-            'xmlns:sf="urn:sobject.enterprise.soap.sforce.com">'
-            f"{header}{body}"
-            "</soapenv:Envelope>"
-        )
-        elif type == "tooling":
-            return (
-            '<?xml version="1.0" encoding="UTF-8"?>'
-            "<soapenv:Envelope "
-            'xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" '
-            'xmlns:xsd="http://www.w3.org/2001/XMLSchema" '
-            'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" '
-            'xmlns="urn:tooling.soap.sforce.com" '
-            'xmlns:mns="urn:metadata.tooling.soap.sforce.com" '
-            'xmlns:sf="urn:sobject.tooling.soap.sforce.com">'
-            f"{header}{body}"
-            "</soapenv:Envelope>"
-        )
-        raise ValueError(
-            f"Unsupported API type: {type}. Must be 'enterprise' or 'tooling'."
-        )
+        return self._soap_client.generate_soap_envelope(header, body, api_type)
 
     def _gen_soap_header(self) -> str:
         """This function generates the header for the SOAP request."""
-        headers = self._get_common_headers()
-        session_id = headers["Authorization"].split(" ")[1]
-        return f"<soapenv:Header><SessionHeader><sessionId>{session_id}</sessionId></SessionHeader></soapenv:Header>"
+        # Ensure we have a valid token
+        self._refresh_token_if_needed()
+        return self._soap_client.generate_soap_header(self.access_token)
 
     def _extract_soap_result_fields(self, xml_string: str) -> Optional[Dict[str, Any]]:
-        """
-        Parse SOAP XML and extract all child fields from <result> as a dict.
-        """
-
-        def strip_ns(tag):
-            return tag.split("}", 1)[-1] if "}" in tag else tag
-
-        try:
-            root = ET.fromstring(xml_string)
-            results = []
-            for result in root.iter():
-                if result.tag.endswith("result"):
-                    out = {}
-                    for child in result:
-                        out[strip_ns(child.tag)] = child.text
-                    results.append(out)
-            if not results:
-                return None
-            if len(results) == 1:
-                return results[0]
-            return results
-        except ET.ParseError as e:
-            logger.error("Failed to parse SOAP XML: %s", e)
-            return None
+        """Parse SOAP XML and extract all child fields from <result> as a dict."""
+        return self._soap_client.extract_soap_result_fields(xml_string)
 
     def _gen_soap_body(self, sobject: str, method: str, data: Dict[str, Any]) -> str:
         """Generates a compact SOAP request body for one or more records."""
-        # Accept both a single dict and a list of dicts
-        if isinstance(data, dict):
-            records = [data]
-        else:
-            records = data
-        sobjects = "".join(
-            f'<sObjects xsi:type="{sobject}">'
-            + "".join(f"<{k}>{v}</{k}>" for k, v in record.items())
-            + "</sObjects>"
-            for record in records
-        )
-        return f"<soapenv:Body><{method}>{sobjects}</{method}></soapenv:Body>"
+        return self._soap_client.generate_soap_body(sobject, method, data)
 
     def _xml_to_json(self, xml_string: str) -> Optional[Dict[str, Any]]:
-        """
-        Convert an XML string to a JSON-like dictionary.
+        """Convert an XML string to a JSON-like dictionary."""
+        return self._soap_client.xml_to_dict(xml_string)
 
-        :param xml_string: The XML string to convert.
-        :return: A dictionary representation of the XML or None on failure.
-        """
-        try:
-            root = ET.fromstring(xml_string)
-            return self._xml_to_dict(root)
-        except ET.ParseError as e:
-            logger.error("Failed to parse XML: %s", e)
-            return None
-
-    def _xml_to_dict(self, element: ET.Element) -> Dict[str, Any]:
-        """
-        Recursively convert an XML Element to a dictionary.
-
-        :param element: The XML Element to convert.
-        :return: A dictionary representation of the XML Element.
-        """
-        if len(element) == 0:
-            return element.text or ""
-
-        result = {}
-        for child in element:
-            child_dict = self._xml_to_dict(child)
-            if child.tag not in result:
-                result[child.tag] = child_dict
-            else:
-                if not isinstance(result[child.tag], list):
-                    result[child.tag] = [result[child.tag]]
-                result[child.tag].append(child_dict)
-        return result
+    def _xml_to_dict(self, element) -> Dict[str, Any]:
+        """Recursively convert an XML Element to a dictionary."""
+        return self._soap_client._xml_element_to_dict(element)
 
     def _create(  # I don't like this name, will think of a better one later...as such, not public.
         self,
         sobject: str,
         insert_list: List[Dict[str, Any]],
         batch_size: int = 200,
-        max_workers: int = None,
+        max_workers: Optional[int] = None,
         api_type: Literal["enterprise", "tooling"] = "enterprise",
     ) -> Optional[Dict[str, Any]]:
         """
         Execute the Insert API to insert multiple records via SOAP calls.
 
         :param sobject: The name of the sObject to insert into.
-        :param insert_list: A list of dictionaries, each representing a record to insert. Example: [{'Subject': 'Easily inserted via SFQ'}]
+        :param insert_list: A list of dictionaries, each representing a record to insert.
         :param batch_size: The number of records to insert in each batch (default is 200).
         :param max_workers: The maximum number of threads to spawn for concurrent execution (default is None).
+        :param api_type: API type to use ('enterprise' or 'tooling').
         :return: JSON response from the insert request or None on failure.
         """
-
-        endpoint = "/services/Soap/"
-        if api_type == "enterprise":
-            endpoint += f"c/{self.api_version}"
-        elif api_type == "tooling":
-            endpoint += f"T/{self.api_version}"
-        else:
-            logger.error(
-                "Invalid API type: %s. Must be one of: 'enterprise', 'tooling'.",
-                api_type,
-            )
-            return None
-        endpoint = endpoint.replace('/v', '/')  # handle API versioning in the endpoint
-
-        if isinstance(insert_list, dict):
-            insert_list = [insert_list]
-
-        chunks = [
-            insert_list[i : i + batch_size]
-            for i in range(0, len(insert_list), batch_size)
-        ]
-
-        def insert_chunk(chunk: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-            header = self._gen_soap_header()
-            body = self._gen_soap_body(sobject=sobject, method="create", data=chunk)
-            envelope = self._gen_soap_envelope(header=header, body=body, type=api_type)
-            soap_headers = self._get_common_headers().copy()
-            soap_headers["Content-Type"] = "text/xml; charset=UTF-8"
-            soap_headers["SOAPAction"] = '""'
-
-            logger.trace("SOAP request envelope: %s", envelope)
-            logger.trace("SOAP request headers: %s", soap_headers)
-            status_code, resp_data = self._send_request(
-                method="POST",
-                endpoint=endpoint,
-                headers=soap_headers,
-                body=envelope,
-            )
-
-            if status_code == 200:
-                logger.debug("Insert API request successful.")
-                logger.trace("Insert API response: %s", resp_data)
-                result = self._extract_soap_result_fields(resp_data)
-                if result:
-                    return result
-                logger.error("Failed to extract fields from SOAP response.")
-            else:
-                logger.error("Insert API request failed: %s", status_code)
-                logger.debug("Response body: %s", resp_data)
-                return None
-
-        results = []
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = [executor.submit(insert_chunk, chunk) for chunk in chunks]
-            for future in as_completed(futures):
-                result = future.result()
-                if result:
-                    results.append(result)
-
-        combined_response = [
-            item
-            for result in results
-            for item in (result if isinstance(result, list) else [result])
-            if isinstance(result, (dict, list))
-        ]
-
-        return combined_response or None
+        return self._crud_client.create(
+            sobject, insert_list, batch_size, max_workers, api_type
+        )
 
     def _debug_cleanup_apex_logs(self):
         """
@@ -1230,8 +554,11 @@ class SFAuth:
         """
         This function opens the Salesforce Frontdoor URL in the default web browser.
         """
+        self._refresh_token_if_needed()
         if not self.access_token:
-            self._get_common_headers()
+            logger.error("No access token available for frontdoor URL")
+            return
+
         sid = quote(self.access_token, safe="")
         frontdoor_url = f"{self.instance_url}/secur/frontdoor.jsp?sid={sid}"
         webbrowser.open(frontdoor_url)

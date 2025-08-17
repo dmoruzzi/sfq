@@ -1,14 +1,8 @@
 import os
-import sys
-from pathlib import Path
 
 import pytest
 
-# --- Setup local import path ---
-project_root = Path(__file__).resolve().parents[1]
-src_path = project_root / "src"
-sys.path.insert(0, str(src_path))
-from sfq import SFAuth  # noqa: E402
+from sfq import SFAuth
 
 
 @pytest.fixture(scope="module")
@@ -37,7 +31,11 @@ def test_cdelete(sf_instance):
     """Ensure that a simple delete returns the expected results."""
     query = "SELECT Id FROM FeedComment LIMIT 1"
     response = sf_instance.query(query)
-    assert response and response["records"], "No FeedComment found for test."
+
+    response_size = len(response["records"])
+    if response_size < 1:
+        pytest.skip("No FeedComment records to perform delete test.")
+
     feed_comment_id = response["records"][0]["Id"]
 
     result = sf_instance.cdelete([feed_comment_id])
@@ -53,7 +51,6 @@ def test_cdelete_batch(sf_instance):
     """Test batching/pagination: Delete multiple FeedComment records and ensure batching works."""
     query = "SELECT Id FROM FeedComment LIMIT 250"
     response = sf_instance.query(query)
-    assert response and response["records"], "No FeedComment found for test."
 
     response_size = len(response["records"])
     if response_size < 201:

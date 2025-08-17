@@ -1,15 +1,8 @@
 import os
-import sys
-from pathlib import Path
 
 import pytest
 
-# --- Setup local import path ---
-project_root = Path(__file__).resolve().parents[1]
-src_path = project_root / "src"
-sys.path.insert(0, str(src_path))
-from sfq import SFAuth  # noqa: E402
-
+from sfq import SFAuth
 
 @pytest.fixture(scope="module")
 def sf_instance():
@@ -20,7 +13,8 @@ def sf_instance():
         "SF_REFRESH_TOKEN",
     ]
 
-    missing_vars = [var for var in required_env_vars if not os.getenv(var)]
+    # Allow empty string, only fail if it's not set at all
+    missing_vars = [var for var in required_env_vars if os.getenv(var) is None]
     if missing_vars:
         pytest.fail(f"Missing required env vars: {', '.join(missing_vars)}")
 
@@ -31,7 +25,6 @@ def sf_instance():
         refresh_token=os.getenv("SF_REFRESH_TOKEN"),
     )
     return sf
-
 
 def get_feed_item_id(sf_instance):
     """Helper to fetch a valid FeedItemId for tests."""

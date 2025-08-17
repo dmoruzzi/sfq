@@ -1,19 +1,13 @@
 import http.client
 import json
 import os
-import sys
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 from time import sleep
 from urllib.parse import quote
 
 import pytest
 
-# --- Setup local import path ---
-project_root = Path(__file__).resolve().parents[1]
-src_path = project_root / "src"
-sys.path.insert(0, str(src_path))
-from sfq import SFAuth  # noqa: E402
+from sfq import SFAuth
 
 
 @pytest.fixture(scope="module")

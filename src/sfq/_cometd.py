@@ -2,12 +2,13 @@ import http.client
 import json
 import logging
 import time
-from typing import Any, Optional
 import warnings
 from queue import Empty, Queue
+from typing import Any, Optional
 
 TRACE = 5
 logging.addLevelName(TRACE, "TRACE")
+
 
 class ExperimentalWarning(Warning):
     pass
@@ -69,12 +70,14 @@ def trace(self: logging.Logger, message: str, *args: Any, **kwargs: Any) -> None
 logging.Logger.trace = trace
 logger = logging.getLogger("sfq")
 
+
 def _reconnect_with_backoff(self, attempt: int) -> None:
     wait_time = min(2**attempt, 60)
     logger.warning(
         f"Reconnecting after failure, backoff {wait_time}s (attempt {attempt})"
     )
     time.sleep(wait_time)
+
 
 def _subscribe_topic(
     self,
@@ -141,9 +144,7 @@ def _subscribe_topic(
         logger.trace("Received handshake response.")
         for name, value in response.getheaders():
             if name.lower() == "set-cookie" and "BAYEUX_BROWSER=" in value:
-                _bayeux_browser_cookie = value.split("BAYEUX_BROWSER=")[1].split(
-                    ";"
-                )[0]
+                _bayeux_browser_cookie = value.split("BAYEUX_BROWSER=")[1].split(";")[0]
                 headers["Cookie"] = f"BAYEUX_BROWSER={_bayeux_browser_cookie}"
                 break
 
@@ -232,9 +233,7 @@ def _subscribe_topic(
                         ConnectionRefusedError,
                         ConnectionError,
                     ) as e:
-                        logger.warning(
-                            f"Connection error (attempt {attempt + 1}): {e}"
-                        )
+                        logger.warning(f"Connection error (attempt {attempt + 1}): {e}")
                         conn.close()
                         conn = self._create_connection(parsed_url.netloc)
                         self._reconnect_with_backoff(attempt)
@@ -266,9 +265,7 @@ def _subscribe_topic(
     finally:
         if client_id:
             try:
-                logger.trace(
-                    f"Disconnecting from server with client ID: {client_id}"
-                )
+                logger.trace(f"Disconnecting from server with client ID: {client_id}")
                 disconnect_payload = json.dumps(
                     [
                         {

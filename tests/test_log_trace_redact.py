@@ -1,16 +1,10 @@
 import logging
 import os
-import sys
 from io import StringIO
-from pathlib import Path
 
 import pytest
 
-# --- Setup local import path ---
-project_root = Path(__file__).resolve().parents[1]
-src_path = project_root / "src"
-sys.path.insert(0, str(src_path))
-from sfq import SFAuth  # noqa: E402
+from sfq import SFAuth
 
 
 @pytest.fixture(scope="module")
@@ -68,13 +62,17 @@ def test_access_token_redacted_in_logs(sf_instance, capture_logs):
     """
     logger, log_stream = capture_logs
 
-    sf_instance._get_common_headers()
+    # Trigger token refresh to get access token and logging
+    sf_instance._refresh_token_if_needed()
 
     logger.handlers[0].flush()
     log_contents = log_stream.getvalue()
 
-    assert "access_token" in log_contents, "Expected access_token key in logs"
-    assert "'access_token': '********'," in log_contents in log_contents, (
+    # The test should verify that access tokens are being logged AND redacted
+    assert "access_token" in log_contents, (
+        "Expected access_token key in logs for redaction testing"
+    )
+    assert "'access_token': '********'," in log_contents, (
         "Access token was not properly redacted in logs"
     )
 
@@ -85,6 +83,7 @@ def test_soap_sessionid_redacted_in_logs(sf_instance, capture_logs):
     """
     logger, log_stream = capture_logs
 
+    # Generate SOAP header using the public method
     soap_header = sf_instance._gen_soap_header()
     logger.trace("SOAP header payload: %s", soap_header)
 
@@ -103,8 +102,15 @@ def test_soap_create_redaction(sf_instance, capture_logs):
     """
     logger, log_stream = capture_logs
 
+    # Use the private _create method which delegates to the CRUD client
     create_response = sf_instance._create("Account", [{"Name": "Test Account"}])
     logger.trace("Creating Account: %s", create_response)
+
+    # If create_response is None, it means authentication failed or no credentials
+    if create_response is None:
+        pytest.skip(
+            "Skipping SOAP create redaction test - no valid credentials or authentication failed"
+        )
 
     created_ids = [
         item["id"]

@@ -1,18 +1,12 @@
 import os
 import re
-import sys
-from pathlib import Path
 from unittest.mock import patch
 from urllib.parse import quote
 
 import pytest
 from pytest import fail
 
-# --- Setup local import path ---
-project_root = Path(__file__).resolve().parents[1]
-src_path = project_root / "src"
-sys.path.insert(0, str(src_path))
-from sfq import SFAuth  # noqa: E402
+from sfq import SFAuth
 
 
 @pytest.fixture(scope="module")

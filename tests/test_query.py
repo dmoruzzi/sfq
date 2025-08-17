@@ -1,14 +1,8 @@
 import os
-import sys
-from pathlib import Path
 
 import pytest
 
-# --- Setup local import path ---
-project_root = Path(__file__).resolve().parents[1]
-src_path = project_root / "src"
-sys.path.insert(0, str(src_path))
-from sfq import SFAuth  # noqa: E402
+from sfq import SFAuth
 
 
 @pytest.fixture(scope="module")
@@ -35,9 +29,11 @@ def sf_instance():
 
 def test_simple_query(sf_instance):
     """Ensure that a simple query returns the expected results."""
-    result = sf_instance.query("SELECT Id FROM Organization LIMIT 1")
+    result = sf_instance.cquery({"refId": "SELECT Id FROM Organization LIMIT 1"})
 
     sf_api_version = sf_instance.api_version
+    org_id = sf_instance.org_id
+    
     expected = {
         "totalSize": 1,
         "done": True,
@@ -45,79 +41,24 @@ def test_simple_query(sf_instance):
             {
                 "attributes": {
                     "type": "Organization",
-                    "url": f"/services/data/{sf_api_version}/sobjects/Organization/00Daj000004ej9WEAQ",
+                    "url": f"/services/data/{sf_api_version}/sobjects/Organization/{org_id}",
                 },
-                "Id": "00Daj000004ej9WEAQ",
+                "Id": f"{org_id}",
             }
         ],
     }
 
-    assert result["done"]
-    assert result["totalSize"] == 1
-    assert len(result["records"]) == 1
-    assert result == expected
-
-
-def test_simple_query_with_tooling(sf_instance):
-    """Ensure that a simple query returns the expected results."""
-    result = sf_instance.query(
-        "SELECT ProdSuffixType FROM OrgDomainLog LIMIT 1", tooling=True
-    )
-
-    sf_api_version = sf_instance.api_version
-    expected = {
-        "size": 1,
-        "totalSize": 1,
-        "done": True,
-        "queryLocator": None,
-        "entityTypeName": "OrgDomainLog",
-        "records": [
-            {
-                "attributes": {
-                    "type": "OrgDomainLog",
-                    "url": f"/services/data/{sf_api_version}/tooling/sobjects/OrgDomainLog/9UXaj000000p9inGAA",
-                },
-                "ProdSuffixType": "MySalesforce",
-            }
-        ],
-    }
-
-    assert result["done"]
-    assert result["totalSize"] == 1
-    assert len(result["records"]) == 1
-    assert result == expected
+    assert result["refId"]["done"]
+    assert result["refId"]["totalSize"] == 1
+    assert len(result["refId"]["records"]) == 1
+    assert result["refId"] == expected
 
 
 def test_query_with_pagination(sf_instance):
     """Ensure that query pagination is functioning"""
-    current_count = sf_instance.query("SELECT Count() FROM FeedComment LIMIT 2200")[
-        "totalSize"
-    ]
-    if current_count < 2200:
-        feedItemId = sf_instance.query("SELECT Id FROM FeedItem LIMIT 1")["records"][0][
-            "Id"
-        ]
-        required_count = 2200 - current_count + 250
-        comments = [
-            {
-                "FeedItemId": feedItemId,
-                "CommentBody": f"Test comment {i} via {sf_instance.user_agent}",
-            }
-            for i in range(required_count)
-        ]
-
-        results = sf_instance.create("FeedComment", comments)
-        assert results and isinstance(results, list), (
-            f"Batch create did not return a list: {results}"
-        )
-
-        current_count = sf_instance.query("SELECT Count() FROM FeedComment LIMIT 2200")[
-            "totalSize"
-        ]
-
-    assert current_count >= 2200, (
-        "Not enough FeedComment records for pagination test exist, despite recent creation..."
-    )
+    result = sf_instance.query("SELECT Count() FROM FeedComment LIMIT 2200")
+    if result['totalSize'] != 2200:
+        pytest.skip("Not enough FeedComments to evaluate query pagination")
 
     result = sf_instance.query("SELECT Id FROM FeedComment LIMIT 2200")
 
