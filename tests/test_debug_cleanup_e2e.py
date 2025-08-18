@@ -116,13 +116,9 @@ def test_debug_cleanup(sf_instance, already_executed: bool = False):
                 datetime.now(timezone.utc) + timedelta(minutes=5)
             ).isoformat(),
         }
-        resp = sf_instance._create(
+        _ = sf_instance._create(
             sobject="TraceFlag", insert_list=[traceflag_payload], api_type="tooling"
         )
-        with open("debug_payload.json", "w") as f:
-            f.write(json.dumps(resp, indent=2))
-        with open("debug_payload.json", "w") as f:
-            f.write(json.dumps(traceflag_payload, indent=2))
 
         traceflag_query = sf_instance.tooling_query(
             f"SELECT Id FROM TraceFlag WHERE TracedEntityId = '{sf_instance.user_id}' LIMIT 1"
