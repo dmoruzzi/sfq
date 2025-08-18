@@ -37,23 +37,17 @@ class CRUDClient:
         self.soap_client = soap_client
         self.api_version = api_version
 
-    def create(
+    def _soap_batch_operation(
         self,
         sobject: str,
-        insert_list: List[Dict[str, Any]],
+        data_list,
+        method: str,
         batch_size: int = 200,
         max_workers: int = None,
         api_type: Literal["enterprise", "tooling"] = "enterprise",
     ) -> Optional[Dict[str, Any]]:
         """
-        Execute the Insert API to insert multiple records via SOAP calls.
-
-        :param sobject: The name of the sObject to insert into.
-        :param insert_list: A list of dictionaries, each representing a record to insert.
-        :param batch_size: The number of records to insert in each batch (default is 200).
-        :param max_workers: The maximum number of threads to spawn for concurrent execution.
-        :param api_type: API type to use ('enterprise' or 'tooling').
-        :return: JSON response from the insert request or None on failure.
+        Internal helper for batch SOAP operations (create/delete).
         """
         endpoint = "/services/Soap/"
         if api_type == "enterprise":
@@ -67,21 +61,20 @@ class CRUDClient:
             )
             return None
 
-        # Handle API versioning in the endpoint
         endpoint = endpoint.replace("/v", "/")
 
-        if isinstance(insert_list, dict):
-            insert_list = [insert_list]
+        if isinstance(data_list, dict) and method == "create":
+            data_list = [data_list]
+        if isinstance(data_list, str) and method == "delete":
+            data_list = [data_list]
 
         chunks = [
-            insert_list[i : i + batch_size]
-            for i in range(0, len(insert_list), batch_size)
+            data_list[i : i + batch_size]
+            for i in range(0, len(data_list), batch_size)
         ]
 
-        def insert_chunk(chunk: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-            """Insert a chunk of records using SOAP API."""
+        def process_chunk(chunk):
             try:
-                # Get the access token for the SOAP header
                 access_token = self.http_client.auth_manager.access_token
                 if not access_token:
                     logger.error("No access token available for SOAP request")
@@ -89,7 +82,7 @@ class CRUDClient:
 
                 header = self.soap_client.generate_soap_header(access_token)
                 body = self.soap_client.generate_soap_body(
-                    sobject=sobject, method="create", data=chunk
+                    sobject=sobject, method=method, data=chunk
                 )
                 envelope = self.soap_client.generate_soap_envelope(
                     header=header, body=body, api_type=api_type
@@ -99,8 +92,8 @@ class CRUDClient:
                 soap_headers["Content-Type"] = "text/xml; charset=UTF-8"
                 soap_headers["SOAPAction"] = '""'
 
-                logger.trace("SOAP request envelope: %s", envelope)
-                logger.trace("SOAP request headers: %s", soap_headers)
+                logger.trace(f"SOAP {method} request envelope: %s", envelope)
+                logger.trace(f"SOAP {method} request headers: %s", soap_headers)
 
                 status_code, resp_data = self.http_client.send_request(
                     method="POST",
@@ -109,25 +102,27 @@ class CRUDClient:
                     body=envelope,
                 )
 
+                logger.trace(f"SOAP {method} response status: {status_code}")
+                logger.trace(f"SOAP {method} raw response: {resp_data}")
+
                 if status_code == 200:
-                    logger.debug("Insert API request successful.")
-                    logger.trace("Insert API response: %s", resp_data)
+                    logger.debug(f"{method.capitalize()} API request successful.")
+                    logger.trace(f"{method.capitalize()} API response: %s", resp_data)
                     result = self.soap_client.extract_soap_result_fields(resp_data)
                     if result:
                         return result
                     logger.error("Failed to extract fields from SOAP response.")
                 else:
-                    logger.error("Insert API request failed: %s", status_code)
+                    logger.error(f"{method.capitalize()} API request failed: %s", status_code)
                     logger.debug("Response body: %s", resp_data)
                     return None
-
             except Exception as e:
-                logger.exception("Exception during insert chunk: %s", e)
+                logger.exception(f"Exception during {method} chunk: %s", e)
                 return None
 
         results = []
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = [executor.submit(insert_chunk, chunk) for chunk in chunks]
+            futures = [executor.submit(process_chunk, chunk) for chunk in chunks]
             for future in as_completed(futures):
                 result = future.result()
                 if result:
@@ -141,6 +136,79 @@ class CRUDClient:
         ]
 
         return combined_response or None
+
+    def create(
+        self,
+        sobject: str,
+        insert_list: List[Dict[str, Any]],
+        batch_size: int = 200,
+        max_workers: int = None,
+        api_type: Literal["enterprise", "tooling"] = "enterprise",
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Execute the Insert API to insert multiple records via SOAP calls.
+        """
+        return self._soap_batch_operation(
+            sobject=sobject,
+            data_list=insert_list,
+            method="create",
+            batch_size=batch_size,
+            max_workers=max_workers,
+            api_type=api_type,
+        )
+    
+    def update(
+        self,
+        sobject: str,
+        update_list: List[Dict[str, Any]],
+        batch_size: int = 200,
+        max_workers: int = None,
+        api_type: Literal["enterprise", "tooling"] = "enterprise",
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Execute the Update API to update multiple records via SOAP calls.
+        :param sobject: The name of the sObject to update.
+        :param update_list: A list of dictionaries, each representing a record to update (must include Id).
+        :param batch_size: The number of records to update in each batch (default is 200).
+        :param max_workers: The maximum number of threads to spawn for concurrent execution.
+        :param api_type: API type to use ('enterprise' or 'tooling').
+        :return: JSON response from the update request or None on failure.
+        """
+        return self._soap_batch_operation(
+            sobject=sobject,
+            data_list=update_list,
+            method="update",
+            batch_size=batch_size,
+            max_workers=max_workers,
+            api_type=api_type,
+        )
+    
+    def delete(
+        self,
+        sobject: str,
+        id_list: List[str],
+        batch_size: int = 200,
+        max_workers: int = None,
+        api_type: Literal["enterprise", "tooling"] = "enterprise",
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Execute the Delete API to remove multiple records via SOAP calls.
+        :param sobject: The name of the sObject to delete from.
+        :param id_list: A list of record IDs to delete (strings, not dicts).
+        :param batch_size: The number of records to delete in each batch (default is 200).
+        :param max_workers: The maximum number of threads to spawn for concurrent execution.
+        :param api_type: API type to use ('enterprise' or 'tooling').
+        :return: JSON response from the delete request or None on failure.
+        """
+        # Pass list of IDs directly for SOAP delete
+        return self._soap_batch_operation(
+            sobject=sobject,
+            data_list=id_list,
+            method="delete",
+            batch_size=batch_size,
+            max_workers=max_workers,
+            api_type=api_type,
+        )
 
     def cupdate(
         self, update_dict: Dict[str, Any], batch_size: int = 25, max_workers: int = None

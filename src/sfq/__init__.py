@@ -25,6 +25,7 @@ from .http_client import HTTPClient
 from .query import QueryClient
 from .soap import SOAPClient
 from .utils import get_logger
+from .debug_cleanup import DebugCleanup
 
 # Define public API for documentation tools
 __all__ = [
@@ -126,6 +127,9 @@ class SFAuth:
             soap_client=self._soap_client,
             api_version=api_version,
         )
+
+        # Initialize the DebugCleanup
+        self._debug_cleanup = DebugCleanup(sf_auth=self)
 
         # Store version information
         self.__version__ = "0.0.33"
@@ -530,25 +534,20 @@ class SFAuth:
             sobject, insert_list, batch_size, max_workers, api_type
         )
 
-    def _debug_cleanup_apex_logs(self):
-        """
-        This function performs cleanup operations for Apex debug logs.
-        """
-        apex_logs = self.query("SELECT Id FROM ApexLog ORDER BY LogLength DESC")
-        if apex_logs and apex_logs.get("records"):
-            log_ids = [log["Id"] for log in apex_logs["records"]]
-            if log_ids:
-                delete_response = self.cdelete(log_ids)
-                logger.debug("Deleted Apex logs: %s", delete_response)
-        else:
-            logger.debug("No Apex logs found to delete.")
-
-    def debug_cleanup(self, apex_logs: bool = True) -> None:
+    def debug_cleanup(
+        self,
+        apex_logs: bool = True,
+        expired_apex_flags: bool = True,
+        all_apex_flags: bool = False,
+    ) -> None:
         """
         Perform cleanup operations for Apex debug logs.
         """
-        if apex_logs:
-            self._debug_cleanup_apex_logs()
+        self._debug_cleanup.debug_cleanup(
+            apex_logs=apex_logs,
+            expired_apex_flags=expired_apex_flags,
+            all_apex_flags=all_apex_flags,
+        )
 
     def open_frontdoor(self) -> None:
         """

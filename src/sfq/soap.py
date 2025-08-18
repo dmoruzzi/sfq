@@ -100,13 +100,18 @@ class SOAPClient:
         else:
             records = data
 
-        sobjects = "".join(
-            f'<sObjects xsi:type="{sobject}">'
-            + "".join(f"<{k}>{v}</{k}>" for k, v in record.items())
-            + "</sObjects>"
-            for record in records
-        )
-        return f"<soapenv:Body><{method}>{sobjects}</{method}></soapenv:Body>"
+        if method == "delete":
+            # For delete, records is a list of IDs (strings)
+            id_tags = "".join(f"<ID>{id}</ID>" for id in records)
+            return f"<soapenv:Body><delete>{id_tags}</delete></soapenv:Body>"
+        else:
+            sobjects = "".join(
+                f'<sObjects xsi:type="{sobject}">'
+                + "".join(f"<{k}>{v}</{k}>" for k, v in record.items())
+                + "</sObjects>"
+                for record in records
+            )
+            return f"<soapenv:Body><{method}>{sobjects}</{method}></soapenv:Body>"
 
     def extract_soap_result_fields(
         self, xml_string: str

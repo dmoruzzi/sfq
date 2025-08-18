@@ -32,6 +32,48 @@ def sf_instance():
     return sf
 
 
+def test_trace_flag_expired_deletions(sf_instance):
+    """
+    This test case ensures that unused TraceFlag's in the Tooling API are deleted when called.
+    """
+    now_iso_format = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+    query = f"SELECT Id, ExpirationDate FROM TraceFlag WHERE ExpirationDate < {now_iso_format}"
+
+    traceflags = sf_instance.tooling_query(query)
+    if traceflags['totalSize'] == 0:
+        pytest.skip("No expired Trace Flag configurations to delete.")
+
+    initial_count = len(traceflags["records"])
+    assert initial_count > 0, "Initial count of TraceFlags should be greater than zero."
+
+    results = sf_instance.debug_cleanup(apex_logs=False, expired_apex_flags=True, all_apex_flags=False)
+    assert results is None, "Expected no return value from debug_cleanup."
+
+    traceflags_after = sf_instance.tooling_query(query)
+    assert len(traceflags_after["records"]) == 0, "TraceFlags were not deleted successfully."
+
+
+def test_trace_flag_all_deletions(sf_instance):
+    """
+    This test case ensures that unused TraceFlag's in the Tooling API are deleted when called.
+    """
+    query = f"SELECT Id, ExpirationDate FROM TraceFlag"
+
+    traceflags = sf_instance.tooling_query(query)
+    if traceflags['totalSize'] == 0:
+        pytest.skip("No expired Trace Flag configurations to delete.")
+
+    initial_count = len(traceflags["records"])
+    assert initial_count > 0, "Initial count of TraceFlags should be greater than zero."
+
+    results = sf_instance.debug_cleanup(apex_logs=False, expired_apex_flags=False, all_apex_flags=True)
+    assert results is None, "Expected no return value from debug_cleanup."
+
+
+    traceflags_after = sf_instance.tooling_query(query)
+    assert len(traceflags_after["records"]) == 0, "TraceFlags were not deleted successfully."
+
 def test_debug_cleanup(sf_instance, already_executed: bool = False):
     """
     Test the debug_cleanup method of SFAuth.
@@ -40,7 +82,7 @@ def test_debug_cleanup(sf_instance, already_executed: bool = False):
     # Check if any Apex logs already exist
     apex_logs = sf_instance.query("SELECT Id FROM ApexLog LIMIT 1")
     if apex_logs.get("records"):
-        sf_instance.debug_cleanup(apex_logs=True)
+        sf_instance.debug_cleanup(apex_logs=True, expired_apex_flags=False, all_apex_flags=False)
         apex_logs_after = sf_instance.query("SELECT Id FROM ApexLog LIMIT 1")
         assert len(apex_logs_after.get("records", [])) == 0, (
             "Apex logs were not cleaned up successfully."
@@ -140,3 +182,4 @@ def test_debug_cleanup(sf_instance, already_executed: bool = False):
 
     sleep(1)  # Race condition mitigation
     return test_debug_cleanup(sf_instance, already_executed=True)
+

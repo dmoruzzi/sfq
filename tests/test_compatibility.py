@@ -541,9 +541,6 @@ class TestPrivateMethodCompatibility:
         assert hasattr(mock_sf_auth, "debug_cleanup")
         assert callable(mock_sf_auth.debug_cleanup)
 
-        assert hasattr(mock_sf_auth, "_debug_cleanup_apex_logs")
-        assert callable(mock_sf_auth._debug_cleanup_apex_logs)
-
     def test_frontdoor_method_available(self, mock_sf_auth):
         """Test that open_frontdoor method is available."""
         assert hasattr(mock_sf_auth, "open_frontdoor")
