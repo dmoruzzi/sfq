@@ -9,6 +9,7 @@ sensitive data redaction functionality.
 import json
 import logging
 import re
+from html import escape
 from typing import Any, Dict, List, Tuple, Union
 
 # Custom TRACE logging level
@@ -194,3 +195,127 @@ def extract_org_and_user_ids(token_id_url: str) -> Tuple[str, str]:
         return org_id, user_id
     except (IndexError, AttributeError):
         raise ValueError(f"Invalid token ID URL format: {token_id_url}")
+
+
+def dicts_to_html_table(
+    items: List[Dict[str, Any]], styled: bool = False
+) -> str:
+    """
+    Convert a list of dictionaries to a compact HTML table.
+
+    :param items: List of dictionaries to convert
+    :param styled: If True, apply minimal inline CSS for compact styling
+    :return: HTML string for a table with one column per key.
+    :raises ValueError: If input is not a list of dictionaries, or if keys are invalid types.
+    """
+    if not isinstance(items, list):
+        raise ValueError("Input must be a list of dictionaries.")
+
+    def render_value(val: Any) -> str:
+        if val is None:
+            return ""
+        if isinstance(val, (int, float, str, bool)):
+            return escape(str(val))
+        if isinstance(val, list):
+            return (
+                "<ul>"
+                + "".join(f"<li>{render_value(item)}</li>" for item in val)
+                + "</ul>"
+            )
+        if isinstance(val, dict):
+            return dicts_to_html_table([val], styled=styled)
+        try:
+            dumped = json.dumps(val, default=str)
+            if dumped.startswith('"') and dumped.endswith('"'):
+                dumped = dumped[1:-1]
+            return escape(dumped)
+        except Exception:
+            return escape(str(val))
+
+    # Preserve key order by first appearance
+    columns: List[str] = []
+    seen = set()
+    for i, d in enumerate(items):
+        if not isinstance(d, dict):
+            raise ValueError(f"Element at index {i} is not a dictionary.")
+        for k in d.keys():
+            k_str = (
+                k
+                if isinstance(k, str)
+                else str(k)
+                if isinstance(k, (int, float, bool))
+                else None
+            )
+            if k_str is None:
+                raise ValueError(f"Dictionary at index {i} has a non-string key: {k!r}")
+            if k_str not in seen:
+                columns.append(k_str)
+                seen.add(k_str)
+
+    # Build table
+    def get_value_by_str_key(d: Dict[Any, Any], col: str) -> Any:
+        for k in d.keys():
+            k_str = (
+                k
+                if isinstance(k, str)
+                else str(k)
+                if isinstance(k, (int, float, bool))
+                else None
+            )
+            if k_str == col:
+                return d[k]
+        return ""
+
+    if styled:
+        table_style = (
+            "border-collapse:collapse;font-size:12px;line-height:1.2;"
+            "margin:0;padding:0;width:auto;"
+        )
+        td_style = "border:1px solid #ccc;padding:2px 6px;vertical-align:top;"
+        th_style = (
+            "border:1px solid #ccc;padding:2px 6px;background:#f8f8f8;font-weight:bold;"
+        )
+        if columns:
+            html = [f'<table style="{table_style}"><thead><tr>']
+            html.extend(f'<th style="{th_style}">{escape(col)}</th>' for col in columns)
+            html.append("</tr></thead><tbody>")
+            for d in items:
+                html.append("<tr>")
+                html.extend(
+                    f'<td style="{td_style}">{render_value(get_value_by_str_key(d, col))}</td>'
+                    for col in columns
+                )
+                html.append("</tr>")
+            html.append("</tbody></table>")
+        else:
+            html = [
+                f'<table style="{table_style}"><thead></thead><tbody></tbody></table>'
+            ]
+    else:
+        if columns:
+            html = ["<table><thead><tr>"]
+            html.extend(f"<th>{escape(col)}</th>" for col in columns)
+            html.append("</tr></thead><tbody>")
+            for d in items:
+                html.append("<tr>")
+                html.extend(
+                    f"<td>{render_value(get_value_by_str_key(d, col))}</td>"
+                    for col in columns
+                )
+                html.append("</tr>")
+            html.append("</tbody></table>")
+        else:
+            html = ["<table><thead></thead><tbody></tbody></table>"]
+
+    return "".join(html)
+
+def records_to_html_table(records: List[Dict[str, Any]], styled: bool = False) -> str:
+    """Convert a list of records to an HTML table."""
+    # really we don't want anything associated with "attributes"
+    normalized_records = []
+    for record in records:
+        if not isinstance(record, dict):
+            raise ValueError(f"Record is not a dictionary: {record!r}")
+        record.pop("attributes", None)
+        normalized_records.append(record)
+    return dicts_to_html_table(normalized_records, styled=styled)

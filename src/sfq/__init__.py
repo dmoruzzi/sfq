@@ -24,7 +24,7 @@ from .exceptions import (
 from .http_client import HTTPClient
 from .query import QueryClient
 from .soap import SOAPClient
-from .utils import get_logger
+from .utils import get_logger, records_to_html_table
 from .debug_cleanup import DebugCleanup
 
 # Define public API for documentation tools
@@ -561,3 +561,19 @@ class SFAuth:
         sid = quote(self.access_token, safe="")
         frontdoor_url = f"{self.instance_url}/secur/frontdoor.jsp?sid={sid}"
         webbrowser.open(frontdoor_url)
+
+    def records_to_html_table(
+        self,
+        items: List[Dict[str, Any]],
+        styled: bool = False,
+    ) -> str:
+        """
+        Convert a list of dictionaries to an HTML table.
+
+        :param items: List of dictionaries to convert.
+        :param styled: If True, apply basic CSS styles to the table.
+        :return: HTML string representing the table.
+        """
+        if "records" in items:
+            items = items["records"]
+        return records_to_html_table(items, styled=styled)
