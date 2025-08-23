@@ -215,7 +215,7 @@ def dicts_to_html_table(
         if val is None:
             return ""
         if isinstance(val, (int, float, str, bool)):
-            return escape(str(val))
+            return str(val)
         if isinstance(val, list):
             return (
                 "<ul>"
@@ -277,7 +277,7 @@ def dicts_to_html_table(
         )
         if columns:
             html = [f'<table style="{table_style}"><thead><tr>']
-            html.extend(f'<th style="{th_style}">{escape(col)}</th>' for col in columns)
+            html.extend(f'<th style="{th_style}">{col}</th>' for col in columns)
             html.append("</tr></thead><tbody>")
             for d in items:
                 html.append("<tr>")
@@ -294,7 +294,7 @@ def dicts_to_html_table(
     else:
         if columns:
             html = ["<table><thead><tr>"]
-            html.extend(f"<th>{escape(col)}</th>" for col in columns)
+            html.extend(f"<th>{col}</th>" for col in columns)
             html.append("</tr></thead><tbody>")
             for d in items:
                 html.append("<tr>")
