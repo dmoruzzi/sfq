@@ -1,6 +1,6 @@
 [project]
 name = "sfq"
-version = "0.0.36"
+version = "0.0.37"
 description = "Python wrapper for the Salesforce's Query API."
 readme = "README.md"
 authors = [{ name = "David Moruzzi", email = "sfq.pypi@dmoruzi.com" }]
