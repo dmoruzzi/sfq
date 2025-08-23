@@ -76,7 +76,6 @@ jobs:
 
           echo "Updating src/sfq/__init__.py user_agent to $VERSION"
           sed -i -E "s/(user_agent: str = \"sfq\/)[0-9]+\.[0-9]+\.[0-9]+(\")/\1$VERSION\2/" src/sfq/__init__.py
-          sed -i -E "s/(user_agent: str = \"sfq\/)[0-9]+\.[0-9]+\.[0-9]+(\")/\1$VERSION\2/" src/sfq/http_client.py
           sed -i -E "s/(default is \"sfq\/)[0-9]+\.[0-9]+\.[0-9]+(\")/\1$VERSION\2/" src/sfq/__init__.py
 
           echo "Updating src/sfq/__init__.py __version__ to $VERSION"
@@ -100,7 +99,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add pyproject.toml uv.lock src/sfq/__init__.py
+          git add pyproject.toml uv.lock src/sfq/__init__.py src/sfq/http_client.py
           git commit -m "CI: bump version to ${{ steps.get_version.outputs.version }}"
           git push
 
