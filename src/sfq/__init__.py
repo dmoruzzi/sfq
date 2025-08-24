@@ -565,6 +565,7 @@ class SFAuth:
     def records_to_html_table(
         self,
         items: List[Dict[str, Any]],
+        headers: Dict[str, str] = None,
         styled: bool = False,
     ) -> str:
         """
@@ -576,4 +577,4 @@ class SFAuth:
         """
         if "records" in items:
             items = items["records"]
-        return records_to_html_table(items, styled=styled)
+        return records_to_html_table(items, headers=headers, styled=styled)

@@ -197,9 +197,7 @@ def extract_org_and_user_ids(token_id_url: str) -> Tuple[str, str]:
         raise ValueError(f"Invalid token ID URL format: {token_id_url}")
 
 
-def dicts_to_html_table(
-    items: List[Dict[str, Any]], styled: bool = False
-) -> str:
+def dicts_to_html_table(items: List[Dict[str, Any]], styled: bool = False) -> str:
     """
     Convert a list of dictionaries to a compact HTML table.
 
@@ -309,13 +307,70 @@ def dicts_to_html_table(
 
     return "".join(html)
 
-def records_to_html_table(records: List[Dict[str, Any]], styled: bool = False) -> str:
-    """Convert a list of records to an HTML table."""
-    # really we don't want anything associated with "attributes"
-    normalized_records = []
-    for record in records:
+
+def flatten_dict(d, parent_key="", sep="."):
+    """Recursively flatten a dictionary with dot notation."""
+    items = {}
+    for k, v in d.items():
+        new_key = f"{parent_key}{sep}{k}" if parent_key else k
+        if isinstance(v, dict):
+            items.update(flatten_dict(v, new_key, sep=sep))
+        else:
+            items[new_key] = v
+    return items
+
+
+def remove_attributes(obj):
+    """Recursively remove 'attributes' key from dicts/lists."""
+    if isinstance(obj, dict):
+        return {k: remove_attributes(v) for k, v in obj.items() if k != "attributes"}
+    elif isinstance(obj, list):
+        return [remove_attributes(item) for item in obj]
+    else:
+        return obj
+
+
+def records_to_html_table(
+    records: List[Dict[str, Any]], headers: Dict[str, str] = None, styled: bool = False
+) -> str:
+    if not isinstance(records, list):
+        raise ValueError("records must be a list of dictionaries")
+
+    cleaned = remove_attributes(records)
+
+    flat_rows = []
+    for record in cleaned:
         if not isinstance(record, dict):
             raise ValueError(f"Record is not a dictionary: {record!r}")
-        record.pop("attributes", None)
-        normalized_records.append(record)
-    return dicts_to_html_table(normalized_records, styled=styled)
+        flat_rows.append(flatten_dict(record))
+
+    # Preserve column order across all rows
+    seen = set()
+    ordered_columns = []
+    for row in flat_rows:
+        for key in row.keys():
+            if key not in seen:
+                ordered_columns.append(key)
+                seen.add(key)
+
+    # headers optionally remaps flattened field names to user-friendly display names
+    if headers is None:
+        headers = {}
+        for col in ordered_columns:
+            headers[col] = col
+    else:
+        for col in ordered_columns:
+            headers[col] = headers.get(col, col)
+
+    # Normalize rows so all have the same keys, using remapped column names
+    normalized_data = []
+    for row in flat_rows:
+        normalized_row = {
+            headers.get(col, col): (
+                "" if row.get(col, None) is None else row.get(col, "")
+            )
+            for col in ordered_columns
+        }
+        normalized_data.append(normalized_row)
+
+    return dicts_to_html_table(normalized_data, styled=styled)
