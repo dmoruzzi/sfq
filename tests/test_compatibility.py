@@ -36,6 +36,7 @@ class TestImportCompatibility:
             CRUDError,
             HTTPError,
             QueryError,
+            QueryTimeoutError,
             SFQException,
             SOAPError,
         )
@@ -44,6 +45,7 @@ class TestImportCompatibility:
         assert issubclass(AuthenticationError, SFQException)
         assert issubclass(APIError, SFQException)
         assert issubclass(QueryError, APIError)
+        assert issubclass(QueryTimeoutError, QueryError)
         assert issubclass(CRUDError, APIError)
         assert issubclass(SOAPError, APIError)
         assert issubclass(

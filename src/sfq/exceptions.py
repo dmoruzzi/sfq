@@ -30,6 +30,12 @@ class QueryError(APIError):
     pass
 
 
+class QueryTimeoutError(QueryError):
+    """Raised when query operations timeout after all retry attempts."""
+
+    pass
+
+
 class CRUDError(APIError):
     """Raised when CRUD operations fail."""
 

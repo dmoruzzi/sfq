@@ -18,6 +18,7 @@ from .exceptions import (
     CRUDError,
     HTTPError,
     QueryError,
+    QueryTimeoutError,
     SFQException,
     SOAPError,
 )
@@ -35,6 +36,7 @@ __all__ = [
     "AuthenticationError",
     "APIError",
     "QueryError",
+    "QueryTimeoutError",
     "CRUDError",
     "SOAPError",
     "HTTPError",

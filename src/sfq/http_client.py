@@ -10,7 +10,8 @@ import json
 from typing import Dict, Optional, Tuple
 
 from .auth import AuthManager
-from .exceptions import ConfigurationError
+from .exceptions import ConfigurationError, QueryTimeoutError
+from .timeout_detector import TimeoutDetector
 from .utils import format_headers_for_logging, get_logger, log_api_usage
 
 logger = get_logger(__name__)
@@ -184,7 +185,123 @@ class HTTPClient:
             if key == "Sforce-Limit-Info":
                 log_api_usage(value, self.high_api_usage_threshold)
 
-    def send_authenticated_request(
+    def send_authenticated_request_with_retry(
+        self,
+        method: str,
+        endpoint: str,
+        body: Optional[str] = None,
+        additional_headers: Optional[Dict[str, str]] = None,
+        max_retries: int = 3,
+    ) -> Tuple[Optional[int], Optional[str]]:
+        """
+        Send an authenticated HTTP request with automatic timeout retry.
+
+        This method wraps the existing send_authenticated_request with retry logic
+        that handles timeout errors by retrying up to max_retries times.
+
+        :param method: HTTP method
+        :param endpoint: API endpoint path
+        :param body: Optional request body
+        :param additional_headers: Optional additional headers to include
+        :param max_retries: Maximum number of retry attempts (default: 3)
+        :return: Tuple of (status_code, response_body) or (None, None) on failure
+        :raises QueryTimeoutError: When all retry attempts fail with timeout errors
+        """
+        # Validate retry count - negative values should be treated as 0
+        if max_retries < 0:
+            max_retries = 0
+            
+        last_exception = None
+        request_context = f"{method} {endpoint}"
+        
+        # Log initial request context for debugging
+        logger.trace("Starting request with retry capability: %s (max_retries=%d)", 
+                    request_context, max_retries)
+        
+        for attempt in range(max_retries + 1):  # +1 for initial attempt
+            try:
+                # Make the request using the original method
+                status, response_body = self._send_authenticated_request_internal(
+                    method, endpoint, body, additional_headers
+                )
+                
+                # Check if this is a timeout error
+                if TimeoutDetector.is_timeout_error(status, response_body, last_exception):
+                    timeout_type = TimeoutDetector.get_timeout_type(status, response_body, last_exception)
+                    
+                    if attempt < max_retries:
+                        # Log detailed retry initiation with timeout type identification
+                        logger.debug(
+                            "Timeout detected (%s timeout) on attempt %d/%d for %s - "
+                            "status_code=%s, retrying...",
+                            timeout_type, attempt + 1, max_retries + 1, request_context, status
+                        )
+                        continue
+                    else:
+                        # All retries exhausted - log error before raising exception
+                        logger.error(
+                            "All %d retry attempts failed with timeout errors for %s - "
+                            "final timeout type: %s, final status_code: %s",
+                            max_retries + 1, request_context, timeout_type, status
+                        )
+                        raise QueryTimeoutError("QUERY_TIMEOUT")
+                
+                # Not a timeout error or successful response, return immediately
+                if attempt > 0:
+                    # Log successful retry recovery
+                    logger.debug(
+                        "Request succeeded on retry attempt %d/%d for %s - "
+                        "status_code=%s, recovered from timeout",
+                        attempt + 1, max_retries + 1, request_context, status
+                    )
+                else:
+                    # Log successful first attempt (trace level to avoid noise)
+                    logger.trace("Request succeeded on first attempt for %s - status_code=%s", 
+                               request_context, status)
+                
+                return status, response_body
+                
+            except QueryTimeoutError:
+                # Re-raise QueryTimeoutError without logging (it was already logged)
+                raise
+            except Exception as e:
+                last_exception = e
+                
+                # Check if this exception indicates a timeout
+                if TimeoutDetector.is_timeout_error(None, None, e):
+                    timeout_type = TimeoutDetector.get_timeout_type(None, None, e)
+                    
+                    if attempt < max_retries:
+                        # Log detailed retry initiation with exception context
+                        logger.debug(
+                            "Timeout exception (%s timeout) on attempt %d/%d for %s - "
+                            "exception: %s, retrying...",
+                            timeout_type, attempt + 1, max_retries + 1, request_context, 
+                            type(e).__name__
+                        )
+                        continue
+                    else:
+                        # All retries exhausted - log error with exception details before raising
+                        logger.error(
+                            "All %d retry attempts failed with timeout errors for %s - "
+                            "final timeout type: %s, final exception: %s",
+                            max_retries + 1, request_context, timeout_type, type(e).__name__
+                        )
+                        raise QueryTimeoutError("QUERY_TIMEOUT")
+                else:
+                    # Not a timeout exception - log and re-raise immediately
+                    logger.debug(
+                        "Non-timeout exception on attempt %d for %s - "
+                        "exception: %s, not retrying",
+                        attempt + 1, request_context, type(e).__name__
+                    )
+                    raise e
+        
+        # This should never be reached, but just in case
+        logger.error("Unexpected code path reached in retry logic for %s", request_context)
+        raise QueryTimeoutError("QUERY_TIMEOUT")
+
+    def _send_authenticated_request_internal(
         self,
         method: str,
         endpoint: str,
@@ -192,10 +309,10 @@ class HTTPClient:
         additional_headers: Optional[Dict[str, str]] = None,
     ) -> Tuple[Optional[int], Optional[str]]:
         """
-        Send an authenticated HTTP request with automatic token refresh.
-
-        This is a convenience method that handles common request patterns
-        with authentication and standard headers.
+        Internal method for sending authenticated requests without retry logic.
+        
+        This is the original send_authenticated_request logic extracted to avoid
+        recursion in the retry wrapper.
 
         :param method: HTTP method
         :param endpoint: API endpoint path
@@ -209,6 +326,32 @@ class HTTPClient:
             headers.update(additional_headers)
 
         return self.send_request(method, endpoint, headers, body)
+
+    def send_authenticated_request(
+        self,
+        method: str,
+        endpoint: str,
+        body: Optional[str] = None,
+        additional_headers: Optional[Dict[str, str]] = None,
+        max_retries: int = 3,
+    ) -> Tuple[Optional[int], Optional[str]]:
+        """
+        Send an authenticated HTTP request with automatic timeout retry.
+
+        This is a convenience method that handles common request patterns
+        with authentication, standard headers, and automatic retry for timeout errors.
+
+        :param method: HTTP method
+        :param endpoint: API endpoint path
+        :param body: Optional request body
+        :param additional_headers: Optional additional headers to include
+        :param max_retries: Maximum number of retry attempts (default: 3)
+        :return: Tuple of (status_code, response_body) or (None, None) on failure
+        :raises QueryTimeoutError: When all retry attempts fail with timeout errors
+        """
+        return self.send_authenticated_request_with_retry(
+            method, endpoint, body, additional_headers, max_retries
+        )
 
     def send_token_request(
         self,

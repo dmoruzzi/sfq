@@ -18,6 +18,7 @@ from sfq.exceptions import (
     CRUDError,
     HTTPError,
     QueryError,
+    QueryTimeoutError,
     SFQException,
     SOAPError,
 )
@@ -40,6 +41,7 @@ class TestExceptions:
         assert issubclass(AuthenticationError, SFQException)
         assert issubclass(APIError, SFQException)
         assert issubclass(QueryError, APIError)
+        assert issubclass(QueryTimeoutError, QueryError)
         assert issubclass(CRUDError, APIError)
         assert issubclass(SOAPError, APIError)
         assert issubclass(HTTPError, SFQException)
@@ -52,6 +54,29 @@ class TestExceptions:
 
         api_error = APIError("API call failed")
         assert str(api_error) == "API call failed"
+
+        query_timeout_error = QueryTimeoutError("QUERY_TIMEOUT")
+        assert str(query_timeout_error) == "QUERY_TIMEOUT"
+
+    def test_query_timeout_error_inheritance(self):
+        """Test that QueryTimeoutError properly inherits from QueryError."""
+        # Test inheritance chain
+        assert issubclass(QueryTimeoutError, QueryError)
+        assert issubclass(QueryTimeoutError, APIError)
+        assert issubclass(QueryTimeoutError, SFQException)
+        assert issubclass(QueryTimeoutError, Exception)
+
+        # Test instantiation with QUERY_TIMEOUT identifier
+        timeout_error = QueryTimeoutError("QUERY_TIMEOUT")
+        assert isinstance(timeout_error, QueryTimeoutError)
+        assert isinstance(timeout_error, QueryError)
+        assert isinstance(timeout_error, APIError)
+        assert isinstance(timeout_error, SFQException)
+        assert str(timeout_error) == "QUERY_TIMEOUT"
+
+        # Test instantiation with custom message
+        custom_timeout_error = QueryTimeoutError("Query timed out after 3 retries")
+        assert str(custom_timeout_error) == "Query timed out after 3 retries"
 
 
 class TestUtils:
