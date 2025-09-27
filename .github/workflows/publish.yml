@@ -33,7 +33,7 @@ jobs:
         run: uv sync
 
       - name: Install pytest
-        run: pip install pytest
+        run: pip install pytest pytest-xdist[psutil]
 
       - name: Authenticate GitHub CLI
         run: |
@@ -87,7 +87,7 @@ jobs:
           sed -i -E "s/(user_agent: str = \"sfq\/)[0-9]+\.[0-9]+\.[0-9]+(\",)/\1$VERSION\2/" src/sfq/http_client.py
 
       - name: Run tests
-        run: pytest --verbose --strict-config
+        run: pytest --verbose --strict-config -n auto
         env:
           PYTHONPATH: src
           SF_INSTANCE_URL: ${{ secrets.SF_INSTANCE_URL }}
