@@ -56,6 +56,44 @@ __version__ = "0.0.39"
 """
 logger = get_logger("sfq")
 
+class _SFTokenAuth:
+    def __init__(
+        self,
+        instance_url: str,
+        access_token: str,
+        api_version: str = "v64.0",
+        token_endpoint: str = "/services/oauth2/token",
+        user_agent: str = "sfq/0.0.39",
+        sforce_client: str = "_auto",
+        proxy: str = "_auto",
+    ) -> None:
+        from . import SFAuth
+
+        self._sf_auth = SFAuth(
+            instance_url=instance_url,
+            client_id="_",
+            refresh_token="_",
+            client_secret=str("_").strip(),
+            api_version=api_version,
+            token_endpoint=token_endpoint,
+            access_token=access_token,
+            token_expiration_time=-1.0,
+            user_agent=user_agent,
+            sforce_client=sforce_client,
+            proxy=proxy,
+        )
+
+        self._sf_auth._auth_manager.access_token = access_token
+        self._sf_auth._auth_manager.token_expiration_time = -1.0
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._sf_auth, name)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name == "_sf_auth":
+            super().__setattr__(name, value)
+        else:
+            setattr(self._sf_auth, name, value)
 
 class SFAuth:
     def __init__(

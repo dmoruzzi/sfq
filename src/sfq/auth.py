@@ -245,6 +245,8 @@ class AuthManager:
 
         :return: True if token is expired or missing, False otherwise
         """
+        if self.token_expiration_time == -1.0:
+            return False # Token never expires
         try:
             return time.time() >= float(self.token_expiration_time)
         except (TypeError, ValueError):
