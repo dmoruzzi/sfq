@@ -3,12 +3,15 @@
 """
 
 import webbrowser
-from typing import Any, Dict, Iterable, List, Literal, Optional
+from typing import Any, Dict, Generator, Iterable, List, Literal, Optional
 from urllib.parse import quote
 
 # Import new modular components
 from .auth import AuthManager
 from .crud import CRUDClient
+
+# Import platform events support
+from .platform_events import PlatformEventsClient
 
 # Re-export all public classes and functions for backward compatibility
 from .exceptions import (
@@ -28,6 +31,9 @@ from .soap import SOAPClient
 from .utils import get_logger, records_to_html_table
 from .debug_cleanup import DebugCleanup
 
+# Re-export PlatformEventsClient for direct import
+from .platform_events import PlatformEventsClient
+
 # Define public API for documentation tools
 __all__ = [
     "SFAuth",
@@ -43,6 +49,7 @@ __all__ = [
     "ConfigurationError",
     # Package metadata
     "__version__",
+    "PlatformEventsClient",
 ]
 
 __version__ = "0.0.41"
@@ -170,6 +177,12 @@ class SFAuth:
 
         # Initialize the DebugCleanup
         self._debug_cleanup = DebugCleanup(sf_auth=self)
+
+        # Initialize the PlatformEventsClient
+        self._platform_events_client = PlatformEventsClient(
+            http_client=self._http_client,
+            api_version=api_version,
+        )
 
         # Store version information
         self.__version__ = "0.0.41"
@@ -352,6 +365,15 @@ class SFAuth:
         * Available after successful token refresh
         """
         return self._auth_manager.org_id
+
+    @property
+    def platform_events(self):
+        """
+        Access to the PlatformEventsClient for advanced usage.
+
+        :return: The PlatformEventsClient instance.
+        """
+        return self._platform_events_client
 
     @property
     def user_id(self) -> Optional[str]:
@@ -618,3 +640,63 @@ class SFAuth:
         if "records" in items:
             items = items["records"]
         return records_to_html_table(items, headers=headers, styled=styled)
+
+    def list_events(self) -> Optional[List[str]]:
+        """
+        List available Platform Events in the Salesforce org.
+
+        :return: List of event API names (e.g., ['sfq__e']) or None on failure.
+        """
+        return self._platform_events_client.list_events()
+
+    def publish(
+        self,
+        event_name: str,
+        event_data: Dict[str, Any],
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Publish a single Platform Event.
+
+        :param event_name: The API name of the Platform Event (e.g., 'sfq__e').
+        :param event_data: Dict of field values for the event (e.g., {'text__c': 'value'}).
+        :return: Response dict with 'success', 'id', etc., or None on failure.
+        """
+        self._refresh_token_if_needed()
+        return self._platform_events_client.publish(event_name, event_data)
+
+    def publish_batch(
+        self,
+        events: List[Dict[str, Any]],
+        event_name: str,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Publish a batch of Platform Events.
+
+        :param events: List of event data dicts (each with field values).
+        :param event_name: The API name of the Platform Event (e.g., 'sfq__e').
+        :return: Dict with 'results': list of individual results, or None on failure.
+        """
+        self._refresh_token_if_needed()
+        return self._platform_events_client.publi#sh_batch(events, event_name)
+
+    def _subscribe(
+        self,
+        event_name: str,
+        queue_timeout: int = 90,
+        max_runtime: Optional[int] = None,
+    ) -> Generator[Dict[str, Any], None, None]:
+        """
+        Subscribe to a Platform Event topic and yield incoming events.
+
+        Uses the CometD long-polling Streaming API. Topic format:
+        '/event/{EventName}'.
+
+        :param event_name: The Platform Event API name (e.g., 'MyEvent__e')
+        :param queue_timeout: Seconds to wait for messages before heartbeat log
+        :param max_runtime: Max seconds to listen (None for unlimited)
+        :yields: Event dicts with channel and data
+        """
+        self._refresh_token_if_needed()
+        yield from self._platform_events_client.subscribe(
+            event_name, queue_timeout=queue_timeout, max_runtime=max_runtime
+        )
