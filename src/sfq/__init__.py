@@ -1,4 +1,4 @@
-w"""
+"""
 .. include:: ../../README.md
 """
 
