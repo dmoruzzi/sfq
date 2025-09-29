@@ -1,4 +1,4 @@
-"""
+w"""
 .. include:: ../../README.md
 """
 
@@ -677,7 +677,7 @@ class SFAuth:
         :return: Dict with 'results': list of individual results, or None on failure.
         """
         self._refresh_token_if_needed()
-        return self._platform_events_client.publi#sh_batch(events, event_name)
+        return self._platform_events_client.publish_batch(events, event_name)
 
     def _subscribe(
         self,
