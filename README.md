@@ -9,6 +9,7 @@ For more varied workflows, consider using an alternative like [Simple Salesforce
 - Simplified query execution for Salesforce instances.
 - Integration with Salesforce authentication via refresh tokens.
 - Option to interact with Salesforce Tooling API for more advanced queries.
+- Platform Events support (list available & publish single/batch).
   
 ## Installation
 
@@ -94,6 +95,36 @@ print(sf.get_sobject_prefixes(key_type="name"))
 >>> {'AIApplication': '0Pp', 'AIApplicationConfig': '6S9', 'AIInsightAction': '9qd', 'AIInsightFeedback': '9bq', 'AIInsightReason': '0T2', 'AIInsightValue': '9qc', ...}
 ```
 
+### Platform Events
+
+Platform Events allow publishing and subscribing to real-time events. Requires a custom Platform Event (e.g., 'sfq__e' with fields like 'text__c').
+
+```python
+from sfq import SFAuth
+
+sf = SFAuth(
+    instance_url="https://example-dev-ed.trailblaze.my.salesforce.com",
+    client_id="your-client-id-here",
+    client_secret="your-client-secret-here",
+    refresh_token="your-refresh-token-here"
+)
+
+# List available events
+events = sf.list_events()
+print(events)  # e.g., ['sfq__e']
+
+# Publish single event
+result = sf.publish('sfq__e', {'text__c': 'Hello Event!'})
+print(result)  # {'success': True, 'id': '2Ee...'}
+
+# Publish batch
+events_data = [
+    {'text__c': 'Batch 1 message'},
+    {'text__c': 'Batch 2 message'}
+]
+batch_result = sf.publish_batch(events_data, 'sfq__e')
+print(batch_result['results'])  # List of results
+
 ## How to Obtain Salesforce Tokens
 
 To use the `sfq` library, you'll need a **client ID** and **refresh token**. The easiest way to obtain these is by using the Salesforce CLI:
@@ -167,4 +198,3 @@ To use the `sfq` library, you'll need a **client ID** and **refresh token**. The
 - **Security**: Safeguard your client_id, client_secret, and refresh_token diligently, as they provide access to your Salesforce environment. Avoid sharing or exposing them in unsecured locations.
 - **Efficient Data Retrieval**: The `query` and `cquery` function automatically handles pagination, simplifying record retrieval across large datasets. It's recommended to use the `LIMIT` clause in queries to control the volume of data returned.
 - **Advanced Tooling Queries**: Utilize the `tooling_query` function to access the Salesforce Tooling API. This option is designed for performing complex operations, enhancing your data management capabilities.
-
