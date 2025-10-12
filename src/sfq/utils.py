@@ -6,6 +6,8 @@ used throughout the SFQ library, including the custom TRACE logging level and
 sensitive data redaction functionality.
 """
 
+import base64
+import hashlib
 import json
 import logging
 import re
@@ -374,3 +376,69 @@ def records_to_html_table(
         normalized_data.append(normalized_row)
 
     return dicts_to_html_table(normalized_data, styled=styled)
+
+
+def fuzz(text: str, key: str, prefix_len: int = 4, suffix_len: int = 4) -> str:
+    """Lightweight XOR-based obfuscation with variable hash prefix/suffix (no separators).
+    
+    Args:
+        text: The text to obfuscate
+        key: The key for XOR operation
+        prefix_len: Length of the MD5 hash prefix (default: 4)
+        suffix_len: Length of the SHA1 hash suffix (default: 4)
+        
+    Returns:
+        Base64 encoded obfuscated string
+    """
+
+    prefix = hashlib.md5(text.encode()).hexdigest()[:prefix_len]
+    suffix = hashlib.sha1(text.encode()).hexdigest()[-suffix_len:] if suffix_len > 0 else ""
+
+    if not key:
+        combined = prefix + text + suffix
+    else:
+        fuzzed_chars = [
+            chr(ord(char) ^ ord(key[i % len(key)])) for i, char in enumerate(text)
+        ]
+        combined = prefix + ''.join(fuzzed_chars) + suffix
+
+    encoded = base64.b64encode(combined.encode("utf-8")).decode("utf-8")
+    return encoded
+
+
+def defuzz(encoded_text: str, key: str, prefix_len: int = 4, suffix_len: int = 4) -> str:
+    """Reverse the fuzz transformation (no separators).
+    
+    Args:
+        encoded_text: The base64 encoded obfuscated text
+        key: The key used for original XOR operation
+        prefix_len: Length of the MD5 hash prefix (must match encoding)
+        suffix_len: Length of the SHA1 hash suffix (must match encoding)
+        
+    Returns:
+        The original decoded text
+        
+    Raises:
+        ValueError: If encoded text format is invalid or corrupted
+    """
+
+    decoded = base64.b64decode(encoded_text.encode("utf-8")).decode("utf-8")
+
+    if len(decoded) < prefix_len + suffix_len:
+        raise ValueError("Invalid encoded text format or corrupted data.")
+
+    prefix = decoded[:prefix_len]
+    suffix = decoded[-suffix_len:] if suffix_len > 0 else ""
+    body = decoded[prefix_len:-suffix_len] if suffix_len > 0 else decoded[prefix_len:]
+
+    if len(prefix) != prefix_len or len(suffix) != suffix_len:
+        raise ValueError("Prefix/suffix length mismatch or corrupted data.")
+
+    if not key:
+        return body
+
+    defuzzed_chars = [
+        chr(ord(char) ^ ord(key[i % len(key)])) for i, char in enumerate(body)
+    ]
+
+    return ''.join(defuzzed_chars)
