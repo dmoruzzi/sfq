@@ -52,7 +52,7 @@ __all__ = [
     "PlatformEventsClient",
 ]
 
-__version__ = "0.0.43"
+__version__ = "0.0.44"
 """
 ### `__version__`
 
@@ -70,7 +70,7 @@ class _SFTokenAuth:
         access_token: str,
         api_version: str = "v64.0",
         token_endpoint: str = "/services/oauth2/token",
-        user_agent: str = "sfq/0.0.43",
+        user_agent: str = "sfq/0.0.44",
         sforce_client: str = "_auto",
         proxy: str = "_auto",
     ) -> None:
@@ -114,7 +114,7 @@ class SFAuth:
         access_token: Optional[str] = None,
         token_expiration_time: Optional[float] = None,
         token_lifetime: int = 15 * 60,
-        user_agent: str = "sfq/0.0.43",
+        user_agent: str = "sfq/0.0.44",
         sforce_client: str = "_auto",
         proxy: str = "_auto",
     ) -> None:
@@ -185,7 +185,7 @@ class SFAuth:
         )
 
         # Store version information
-        self.__version__ = "0.0.43"
+        self.__version__ = "0.0.44"
         """
         ### `__version__`
         
