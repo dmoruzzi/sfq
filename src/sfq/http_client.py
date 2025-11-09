@@ -5,8 +5,10 @@ This module handles HTTP/HTTPS connection management, request/response handling,
 proxy support, and unified request processing with logging and error handling.
 """
 
+import errno
 import http.client
 import json
+import time
 from typing import Dict, Optional, Tuple
 
 from .auth import AuthManager
@@ -128,42 +130,99 @@ class HTTPClient:
         :param body: Optional request body
         :return: Tuple of (status_code, response_body) or (None, None) on failure
         """
-        try:
-            # Get the instance netloc for connection
-            netloc = self.auth_manager.get_instance_netloc()
-            conn = self.create_connection(netloc)
+        max_attempts = 10
+        backoff_base_seconds = 1.0
 
-            # Log request details
-            logger.trace("Request method: %s", method)
-            logger.trace("Request endpoint: %s", endpoint)
-            logger.trace("Request headers: %s", headers)
-            if body:
-                logger.trace("Request body: %s", body)
+        def _is_connection_timeout_error(exc: BaseException) -> bool:
+            """
+            Detect low-level connection timeout errors (including nested causes).
 
-            # Send the request
-            conn.request(method, endpoint, body=body, headers=headers)
-            response = conn.getresponse()
+            We specifically look for:
+            - OSError with errno == ETIMEDOUT
+            - Messages like "Connection timed out"
+            """
+            current = exc
+            while current is not None:
+                if isinstance(current, OSError):
+                    if getattr(current, "errno", None) in (
+                        errno.ETIMEDOUT,
+                        110,  # Common POSIX ETIMEDOUT value
+                    ):
+                        return True
+                message = str(current).lower()
+                if "connection timed out" in message or "timed out" in message:
+                    return True
+                current = getattr(current, "__cause__", None) or getattr(
+                    current, "__context__", None
+                )
+            return False
 
-            # Process response headers and extract data
-            self._process_response_headers(response)
-            data = response.read().decode("utf-8")
+        last_exception: Optional[Exception] = None
 
-            # Log response details
-            logger.trace("Response status: %s", response.status)
-            logger.trace("Response body: %s", data)
-
-            return response.status, data
-
-        except Exception as err:
-            logger.exception("HTTP request failed: %s", err)
-            return None, None
-
-        finally:
+        for attempt in range(1, max_attempts + 1):
+            conn = None
             try:
-                logger.trace("Closing connection...")
-                conn.close()
-            except Exception:
-                pass  # Ignore connection close errors
+                # Get the instance netloc for connection
+                netloc = self.auth_manager.get_instance_netloc()
+                conn = self.create_connection(netloc)
+
+                # Log request details
+                logger.trace("Request method: %s", method)
+                logger.trace("Request endpoint: %s", endpoint)
+                logger.trace("Request headers: %s", headers)
+                if body:
+                    logger.trace("Request body: %s", body)
+
+                # Send the request
+                conn.request(method, endpoint, body=body, headers=headers)
+                response = conn.getresponse()
+
+                # Process response headers and extract data
+                self._process_response_headers(response)
+                data = response.read().decode("utf-8")
+
+                # Log response details
+                logger.trace("Response status: %s", response.status)
+                logger.trace("Response body: %s", data)
+
+                return response.status, data
+
+            except Exception as err:
+                last_exception = err
+
+                if _is_connection_timeout_error(err) and attempt < max_attempts:
+                    # Connection timeout -> retry with exponential backoff
+                    sleep_seconds = backoff_base_seconds * (2 ** (attempt - 1))
+                    logger.warning(
+                        "HTTP request attempt %d/%d failed due to connection timeout, "
+                        "retrying in %.1fs: %s",
+                        attempt,
+                        max_attempts,
+                        sleep_seconds,
+                        err,
+                    )
+                    try:
+                        if conn is not None:
+                            conn.close()
+                    except Exception:
+                        pass
+                    time.sleep(sleep_seconds)
+                    continue
+
+                # Non-timeout error or max attempts reached -> log and fail
+                logger.exception("HTTP request failed (attempt %d/%d): %s", attempt, max_attempts, err)
+                return None, None
+
+            finally:
+                if conn is not None:
+                    try:
+                        logger.trace("Closing connection...")
+                        conn.close()
+                    except Exception as e:
+                        logger.debug(
+                            "Failed to close HTTP connection during cleanup: %s",
+                            e,
+                        )
 
     def _process_response_headers(self, response: http.client.HTTPResponse) -> None:
         """
