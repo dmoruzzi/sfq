@@ -30,6 +30,7 @@ from .query import QueryClient
 from .soap import SOAPClient
 from .utils import get_logger, records_to_html_table
 from .debug_cleanup import DebugCleanup
+from .mdapi import mdapi_retrieve, unpack_mdapi_zip
 
 # Re-export PlatformEventsClient for direct import
 from .platform_events import PlatformEventsClient
@@ -50,6 +51,9 @@ __all__ = [
     # Package metadata
     "__version__",
     "PlatformEventsClient",
+    # MDAPI helpers
+    "mdapi_retrieve",
+    "unpack_mdapi_zip",
 ]
 
 __version__ = "0.0.45"
@@ -699,4 +703,52 @@ class SFAuth:
         self._refresh_token_if_needed()
         yield from self._platform_events_client.subscribe(
             event_name, queue_timeout=queue_timeout, max_runtime=max_runtime
+        )
+
+    def mdapi_retrieve(
+        self,
+        package: Dict[str, Any] | List[str],
+        mdapi_version: str | None = None,
+        poll_interval_seconds: float = 3.0,
+        max_poll_seconds: float = 600.0,
+        raw_response: bool = False,
+        raw_bytes: bool = False,
+    ):
+        """
+        Retrieve metadata via the Salesforce Metadata API (MDAPI).
+
+        This is a convenience wrapper over the top-level mdapi_retrieve() helper
+        that is wired to this SFAuth instance.
+
+        Args:
+            package: Either:
+                - dict[str, list[str] | str]: mapping metadata types to members, or
+                - list[str]: list of metadata types (interpreted as wildcard "*").
+            mdapi_version: Metadata API version, e.g. "v64.0".
+            poll_interval_seconds: Delay between polling attempts.
+            max_poll_seconds: Max total time to poll before aborting.
+
+        Returns:
+            BytesIO containing the retrieved ZIP file (not decompressed).
+
+        Raises:
+            SOAPError on failure or non-successful MDAPI result.
+        """
+        # Import lazily to avoid cycles at module import time
+        from .mdapi import mdapi_retrieve as _mdapi_retrieve
+
+        # Ensure we have a valid token before starting the MDAPI flow
+        self._refresh_token_if_needed()
+
+        if mdapi_version is None:
+            mdapi_version = str(self.api_version).lower().removeprefix('v')
+
+        return _mdapi_retrieve(
+            sf=self,
+            package=package,
+            mdapi_version=mdapi_version,
+            poll_interval_seconds=poll_interval_seconds,
+            max_poll_seconds=max_poll_seconds,
+            raw_response=raw_response,
+            raw_bytes=raw_bytes,
         )

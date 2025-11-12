@@ -55,13 +55,16 @@ def _redact_sensitive(data: Any) -> Any:
             )
         )
     elif isinstance(data, str):
-        # Redact sessionId in XML
-        if "<sessionId>" in data and "</sessionId>" in data:
-            data = re.sub(
-                r"(<sessionId>)(.*?)(</sessionId>)",
-                r"\1{}\3".format(REDACT_VALUE),
-                data,
-            )
+        data = re.sub(
+            r"(<[a-zA-Z0-9_]*:?sessionId>)(.*?)(</[a-zA-Z0-9_]*:?sessionId>)",
+            r"\1{}\3".format(REDACT_VALUE),
+            data,
+        )
+        data = re.sub(
+            r"(<[a-zA-Z0-9_]*:?sessionId>)(.*?)(</[a-zA-Z0-9_]*:?sessionId>)",
+            r"\1{}\3".format(REDACT_VALUE),
+            data,
+        )
         # Redact query string parameters
         parts = data.split("&")
         for i, part in enumerate(parts):

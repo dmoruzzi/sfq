@@ -136,3 +136,28 @@ def test_soap_create_redaction(sf_instance, capture_logs):
     )
 
     assert "access_token" not in log_contents, "Access token should not be logged"
+
+
+def test_metadata_retrieve_redaction(sf_instance, capture_logs):
+    """
+    Ensure Metadata API retrieve operation does not leak sensitive information in logs.
+    """
+    logger, log_stream = capture_logs
+
+    retrieve_response = sf_instance.mdapi_retrieve(["ApexComponent"])
+    logger.trace("Metadata retrieve response: %s", retrieve_response)
+
+    logger.handlers[0].flush()
+    log_contents = log_stream.getvalue()
+
+    assert "<met:sessionId>" in log_contents, (
+        "SOAP sessionId should be present in logs for metadata retrieve"
+    )
+    assert f"<met:sessionId>{'*' * 8}</met:sessionId>" in log_contents, (
+        "SOAP sessionId should be redacted as 8 asterisks in metadata retrieve logs"
+    )
+
+    # Access tokens must never be exposed
+    assert "access_token" not in log_contents, (
+        "Access token should not be logged in metadata retrieve traces"
+    )
