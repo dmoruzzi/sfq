@@ -140,7 +140,7 @@ def test_debug_cleanup(sf_instance, already_executed: bool = False):
         )
         conn.request(
             "PATCH",
-            f"/services/data/v64.0/tooling/sobjects/TraceFlag/{traceflag_id}",
+            f"/services/data/v65.0/tooling/sobjects/TraceFlag/{traceflag_id}",
             body=payload,
             headers={
                 "Authorization": f"Bearer {sf_instance.access_token}",
@@ -161,7 +161,7 @@ def test_debug_cleanup(sf_instance, already_executed: bool = False):
     conn = http.client.HTTPSConnection(sf_instance.instance_url.replace("https://", ""))
     conn.request(
         "GET",
-        f"/services/data/v64.0/tooling/executeAnonymous/?anonymousBody={encoded_body}",
+        f"/services/data/v65.0/tooling/executeAnonymous/?anonymousBody={encoded_body}",
         headers={
             "Authorization": f"Bearer {sf_instance.access_token}",
             "Content-Type": "application/json",

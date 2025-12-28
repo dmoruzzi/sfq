@@ -16,12 +16,12 @@ class TestSOAPClient:
     def setup_method(self):
         """Set up test fixtures."""
         self.mock_http_client = Mock()
-        self.soap_client = SOAPClient(self.mock_http_client, "v64.0")
+        self.soap_client = SOAPClient(self.mock_http_client, "v65.0")
 
     def test_init(self):
         """Test SOAPClient initialization."""
         assert self.soap_client.http_client == self.mock_http_client
-        assert self.soap_client.api_version == "v64.0"
+        assert self.soap_client.api_version == "v65.0"
 
     def test_generate_soap_envelope_enterprise(self):
         """Test SOAP envelope generation for Enterprise API."""

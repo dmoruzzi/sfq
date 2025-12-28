@@ -25,7 +25,7 @@ class CRUDClient:
     Salesforce APIs with batch processing and threading support.
     """
 
-    def __init__(self, http_client, soap_client, api_version: str = "v64.0"):
+    def __init__(self, http_client, soap_client, api_version: str = "v65.0"):
         """
         Initialize the CRUD client.
 

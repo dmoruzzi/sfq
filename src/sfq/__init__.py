@@ -72,7 +72,7 @@ class _SFTokenAuth:
         self,
         instance_url: str,
         access_token: str,
-        api_version: str = "v64.0",
+        api_version: str = "v65.0",
         token_endpoint: str = "/services/oauth2/token",
         user_agent: str = "sfq/0.0.46",
         sforce_client: str = "_auto",
@@ -113,7 +113,7 @@ class SFAuth:
         client_id: str,
         client_secret: str,
         refresh_token: str,
-        api_version: str = "v64.0",
+        api_version: str = "v65.0",
         token_endpoint: str = "/services/oauth2/token",
         access_token: Optional[str] = None,
         token_expiration_time: Optional[float] = None,
@@ -265,7 +265,7 @@ class SFAuth:
 
         **The Salesforce API version to use.**
 
-        * Must include the `"v"` prefix (e.g., `"v64.0"`)
+        * Must include the `"v"` prefix (e.g., `"v65.0"`)
         * Periodically updated to align with new Salesforce releases
         """
         return self._auth_manager.api_version
@@ -724,7 +724,7 @@ class SFAuth:
             package: Either:
                 - dict[str, list[str] | str]: mapping metadata types to members, or
                 - list[str]: list of metadata types (interpreted as wildcard "*").
-            mdapi_version: Metadata API version, e.g. "v64.0".
+            mdapi_version: Metadata API version, e.g. "v65.0".
             poll_interval_seconds: Delay between polling attempts.
             max_poll_seconds: Max total time to poll before aborting.
 

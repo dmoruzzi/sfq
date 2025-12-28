@@ -40,7 +40,7 @@ class TestAuthManager:
         assert auth.client_id == self.client_id
         assert auth.refresh_token == self.refresh_token
         assert auth.client_secret == self.client_secret
-        assert auth.api_version == "v64.0"
+        assert auth.api_version == "v65.0"
         assert auth.token_endpoint == "/services/oauth2/token"
         assert auth.access_token is None
         assert auth.token_expiration_time is None

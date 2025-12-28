@@ -27,7 +27,7 @@ class TestQueryClientTimeoutIntegration:
         """Create a mock AuthManager for testing."""
         auth_manager = Mock(spec=AuthManager)
         auth_manager.instance_url = "https://test.my.salesforce.com"
-        auth_manager.api_version = "v64.0"
+        auth_manager.api_version = "v65.0"
         auth_manager.access_token = "test_token_123"
         auth_manager.get_proxy_config.return_value = None
         auth_manager.get_instance_netloc.return_value = "test.my.salesforce.com"
@@ -49,7 +49,7 @@ class TestQueryClientTimeoutIntegration:
     @pytest.fixture
     def query_client(self, http_client):
         """Create QueryClient instance for testing."""
-        return QueryClient(http_client, api_version="v64.0")
+        return QueryClient(http_client, api_version="v65.0")
 
     @patch("sfq.http_client.HTTPClient._send_authenticated_request_internal")
     def test_standard_soql_query_timeout_retry_success(self, mock_internal, query_client):
@@ -81,7 +81,7 @@ class TestQueryClientTimeoutIntegration:
         
         # Both calls should be identical
         assert first_call == second_call
-        assert first_call[0][1] == "/services/data/v64.0/query?q=SELECT%20Id%2C%20Name%20FROM%20Account%20LIMIT%202"
+        assert first_call[0][1] == "/services/data/v65.0/query?q=SELECT%20Id%2C%20Name%20FROM%20Account%20LIMIT%202"
 
     @patch("sfq.http_client.HTTPClient._send_authenticated_request_internal")
     def test_standard_soql_query_timeout_retry_all_fail(self, mock_internal, query_client):
@@ -127,7 +127,7 @@ class TestQueryClientTimeoutIntegration:
 
         # Verify the tooling endpoint was called
         first_call = mock_internal.call_args_list[0]
-        assert first_call[0][1] == "/services/data/v64.0/tooling/query?q=SELECT%20Id%2C%20Name%20FROM%20ApexClass%20LIMIT%201"
+        assert first_call[0][1] == "/services/data/v65.0/tooling/query?q=SELECT%20Id%2C%20Name%20FROM%20ApexClass%20LIMIT%201"
 
     @patch("sfq.http_client.HTTPClient._send_authenticated_request_internal")
     def test_tooling_api_query_timeout_retry_all_fail(self, mock_internal, query_client):
@@ -196,7 +196,7 @@ class TestQueryClientTimeoutIntegration:
 
         # Verify the composite batch endpoint was called
         first_call = mock_internal.call_args_list[0]
-        assert first_call[0][1] == "/services/data/v64.0/composite/batch"
+        assert first_call[0][1] == "/services/data/v65.0/composite/batch"
         assert first_call[0][0] == "POST"
 
     @patch("sfq.http_client.HTTPClient._send_authenticated_request_internal")
@@ -229,7 +229,7 @@ class TestQueryClientTimeoutIntegration:
             (200, json.dumps({
                 "totalSize": 4,
                 "done": False,
-                "nextRecordsUrl": "/services/data/v64.0/query/01gXX0000000001-2000",
+                "nextRecordsUrl": "/services/data/v65.0/query/01gXX0000000001-2000",
                 "records": [
                     {"Id": "001000000000001", "Name": "Test Account 1"},
                     {"Id": "001000000000002", "Name": "Test Account 2"}
@@ -260,7 +260,7 @@ class TestQueryClientTimeoutIntegration:
         # Verify pagination was called
         mock_send_request.assert_called_once_with(
             method="GET",
-            endpoint="/services/data/v64.0/query/01gXX0000000001-2000",
+            endpoint="/services/data/v65.0/query/01gXX0000000001-2000",
             headers=query_client.http_client.get_common_headers(include_auth=True)
         )
 
@@ -272,7 +272,7 @@ class TestQueryClientTimeoutIntegration:
         mock_internal.return_value = (200, json.dumps({
             "totalSize": 4,
             "done": False,
-            "nextRecordsUrl": "/services/data/v64.0/query/01gXX0000000001-2000",
+            "nextRecordsUrl": "/services/data/v65.0/query/01gXX0000000001-2000",
             "records": [
                 {"Id": "001000000000001", "Name": "Test Account 1"},
                 {"Id": "001000000000002", "Name": "Test Account 2"}
@@ -449,7 +449,7 @@ class TestQueryClientTimeoutIntegration:
                         "result": {
                             "totalSize": 4,
                             "done": False,
-                            "nextRecordsUrl": "/services/data/v64.0/query/01gXX0000000001-2000",
+                            "nextRecordsUrl": "/services/data/v65.0/query/01gXX0000000001-2000",
                             "records": [
                                 {"Id": "001000000000001", "Name": "Test Account 1"},
                                 {"Id": "001000000000002", "Name": "Test Account 2"}

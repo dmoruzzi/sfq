@@ -21,12 +21,12 @@ class SOAPClient:
     for both Enterprise and Tooling APIs.
     """
 
-    def __init__(self, http_client, api_version: str = "v64.0"):
+    def __init__(self, http_client, api_version: str = "v65.0"):
         """
         Initialize the SOAP client.
 
         :param http_client: HTTPClient instance for making requests
-        :param api_version: Salesforce API version (e.g., "v64.0")
+        :param api_version: Salesforce API version (e.g., "v65.0")
         """
         self.http_client = http_client
         self.api_version = api_version

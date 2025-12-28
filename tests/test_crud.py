@@ -19,14 +19,14 @@ class TestCRUDClient:
         self.crud_client = CRUDClient(
             http_client=self.mock_http_client,
             soap_client=self.mock_soap_client,
-            api_version="v64.0",
+            api_version="v65.0",
         )
 
     def test_init(self):
         """Test CRUDClient initialization."""
         assert self.crud_client.http_client == self.mock_http_client
         assert self.crud_client.soap_client == self.mock_soap_client
-        assert self.crud_client.api_version == "v64.0"
+        assert self.crud_client.api_version == "v65.0"
 
     def mock_authenticated_response(self, responses):
         """Helper to mock send_authenticated_request with single or multiple responses."""
@@ -75,7 +75,7 @@ class TestCRUDClient:
         self.mock_http_client.send_request.assert_called_once()
         call_args = self.mock_http_client.send_request.call_args
         assert call_args[1]["method"] == "POST"
-        assert call_args[1]["endpoint"] == "/services/Soap/c/64.0"
+        assert call_args[1]["endpoint"] == "/services/Soap/c/65.0"
         assert call_args[1]["headers"]["Content-Type"] == "text/xml; charset=UTF-8"
         assert call_args[1]["headers"]["SOAPAction"] == '""'
         assert call_args[1]["body"] == "<envelope/>"
@@ -135,7 +135,7 @@ class TestCRUDClient:
 
         # Verify endpoint
         call_args = self.mock_http_client.send_request.call_args
-        assert call_args[1]["endpoint"] == "/services/Soap/T/64.0"
+        assert call_args[1]["endpoint"] == "/services/Soap/T/65.0"
 
         # Verify SOAP envelope generation
         self.mock_soap_client.generate_soap_envelope.assert_called_once_with(
@@ -307,7 +307,7 @@ class TestCRUDClient:
         self.mock_http_client.send_request.assert_called_once()
         call_args = self.mock_http_client.send_request.call_args
         assert call_args[1]["method"] == "POST"
-        assert call_args[1]["endpoint"] == "/services/data/v64.0/composite"
+        assert call_args[1]["endpoint"] == "/services/data/v65.0/composite"
 
         # Verify request body
         body = json.loads(call_args[1]["body"])
@@ -500,7 +500,7 @@ class TestCRUDClient:
 
         assert result == "static resource content"
         self.mock_http_client.send_authenticated_request.assert_called_once_with(
-            "GET", "/services/data/v64.0/sobjects/StaticResource/081xx000000001/Body"
+            "GET", "/services/data/v65.0/sobjects/StaticResource/081xx000000001/Body"
         )
 
     def test_read_static_resource_name_with_namespace(self):
@@ -578,7 +578,7 @@ class TestCRUDClient:
         # All arguments are keywords, so check kwargs
         assert kwargs.get("method") == "PATCH"
         assert (
-            "/services/data/v64.0/sobjects/StaticResource/081xx000000001"
+            "/services/data/v65.0/sobjects/StaticResource/081xx000000001"
             in kwargs.get("endpoint", "")
         )
 

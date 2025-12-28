@@ -28,7 +28,7 @@ class TestMalformedResponseHandling:
         """Create a mock AuthManager for testing."""
         auth_manager = Mock(spec=AuthManager)
         auth_manager.instance_url = "https://test.my.salesforce.com"
-        auth_manager.api_version = "v64.0"
+        auth_manager.api_version = "v65.0"
         auth_manager.access_token = "test_token_123"
         auth_manager.get_proxy_config.return_value = None
         auth_manager.get_instance_netloc.return_value = "test.my.salesforce.com"
@@ -54,7 +54,7 @@ class TestMalformedResponseHandling:
             mock_internal.return_value = (400, '{"message":"Invalid query syntax", "errorCode":}')
 
             status, data = http_client.send_authenticated_request_with_retry(
-                "GET", "/services/data/v64.0/query", max_retries=3
+                "GET", "/services/data/v65.0/query", max_retries=3
             )
 
             # Should not retry because it's not a timeout response
@@ -68,7 +68,7 @@ class TestMalformedResponseHandling:
             mock_internal.return_value = (400, "")
 
             status, data = http_client.send_authenticated_request_with_retry(
-                "GET", "/services/data/v64.0/query", max_retries=3
+                "GET", "/services/data/v65.0/query", max_retries=3
             )
 
             # Should not retry because empty body doesn't contain timeout message
@@ -83,7 +83,7 @@ class TestMalformedResponseHandling:
             mock_internal.return_value = (400, None)
 
             status, data = http_client.send_authenticated_request_with_retry(
-                "GET", "/services/data/v64.0/query", max_retries=3
+                "GET", "/services/data/v65.0/query", max_retries=3
             )
 
             # Should not retry because None body doesn't contain timeout message
@@ -101,7 +101,7 @@ class TestMalformedResponseHandling:
             ]
 
             status, data = http_client.send_authenticated_request_with_retry(
-                "GET", "/services/data/v64.0/query", max_retries=3
+                "GET", "/services/data/v65.0/query", max_retries=3
             )
 
             # Should retry because timeout message is present regardless of JSON validity
@@ -127,7 +127,7 @@ class TestMalformedResponseHandling:
             ]
 
             status, data = http_client.send_authenticated_request_with_retry(
-                "GET", "/services/data/v64.0/query", max_retries=3
+                "GET", "/services/data/v65.0/query", max_retries=3
             )
 
             # Should retry because timeout message is present in HTML
@@ -142,7 +142,7 @@ class TestMalformedResponseHandling:
             mock_internal.return_value = (400, "your query request was running for too long.")
 
             status, data = http_client.send_authenticated_request_with_retry(
-                "GET", "/services/data/v64.0/query", max_retries=3
+                "GET", "/services/data/v65.0/query", max_retries=3
             )
 
             # Should not retry because message is case sensitive
@@ -160,7 +160,7 @@ class TestMalformedResponseHandling:
             ]
 
             status, data = http_client.send_authenticated_request_with_retry(
-                "GET", "/services/data/v64.0/query", max_retries=3
+                "GET", "/services/data/v65.0/query", max_retries=3
             )
 
             # Should retry because timeout message and error code are present
@@ -177,7 +177,7 @@ class TestConnectionReuseValidation:
         """Create a mock AuthManager for testing."""
         auth_manager = Mock(spec=AuthManager)
         auth_manager.instance_url = "https://test.my.salesforce.com"
-        auth_manager.api_version = "v64.0"
+        auth_manager.api_version = "v65.0"
         auth_manager.access_token = "test_token_123"
         auth_manager.get_proxy_config.return_value = None
         auth_manager.get_instance_netloc.return_value = "test.my.salesforce.com"
@@ -218,7 +218,7 @@ class TestConnectionReuseValidation:
             ]
 
             status, data = http_client.send_authenticated_request_with_retry(
-                "GET", "/services/data/v64.0/query", max_retries=3
+                "GET", "/services/data/v65.0/query", max_retries=3
             )
 
             assert status == 200
@@ -241,8 +241,8 @@ class TestConnectionReuseValidation:
 
             # Test with custom headers and body
             method = "POST"
-            endpoint = "/services/data/v64.0/composite"
-            body = '{"compositeRequest": [{"method": "GET", "url": "/services/data/v64.0/sobjects/Account/001"}]}'
+            endpoint = "/services/data/v65.0/composite"
+            body = '{"compositeRequest": [{"method": "GET", "url": "/services/data/v65.0/sobjects/Account/001"}]}'
             additional_headers = {
                 "Custom-Header": "test-value",
                 "X-Request-ID": "12345",
@@ -283,7 +283,7 @@ class TestConnectionReuseValidation:
                 ]
 
                 status, data = http_client.send_authenticated_request_with_retry(
-                    "GET", "/services/data/v64.0/query", max_retries=3
+                    "GET", "/services/data/v65.0/query", max_retries=3
                 )
 
                 assert status == 200
@@ -309,7 +309,7 @@ class TestHTTPMethodValidation:
         """Create a mock AuthManager for testing."""
         auth_manager = Mock(spec=AuthManager)
         auth_manager.instance_url = "https://test.my.salesforce.com"
-        auth_manager.api_version = "v64.0"
+        auth_manager.api_version = "v65.0"
         auth_manager.access_token = "test_token_123"
         auth_manager.get_proxy_config.return_value = None
         auth_manager.get_instance_netloc.return_value = "test.my.salesforce.com"
@@ -338,7 +338,7 @@ class TestHTTPMethodValidation:
                 (200, '{"success": true}')
             ]
 
-            endpoint = f"/services/data/v64.0/sobjects/Account/001"
+            endpoint = f"/services/data/v65.0/sobjects/Account/001"
             body = '{"Name": "Test Account"}' if method in ["POST", "PATCH", "PUT"] else None
 
             status, data = http_client.send_authenticated_request_with_retry(
@@ -362,7 +362,7 @@ class TestHTTPMethodValidation:
                 (200, '{"records": [{"Id": "001"}]}')
             ]
 
-            endpoint = "/services/data/v64.0/query?q=SELECT+Id+FROM+Account+LIMIT+1"
+            endpoint = "/services/data/v65.0/query?q=SELECT+Id+FROM+Account+LIMIT+1"
             
             status, data = http_client.send_authenticated_request_with_retry(
                 "GET", endpoint, max_retries=3
@@ -390,7 +390,7 @@ class TestHTTPMethodValidation:
                 "compositeRequest": [
                     {
                         "method": "POST",
-                        "url": "/services/data/v64.0/sobjects/Account",
+                        "url": "/services/data/v65.0/sobjects/Account",
                         "body": {"Name": f"Test Account {i}"}
                     }
                     for i in range(100)  # 100 records
@@ -398,7 +398,7 @@ class TestHTTPMethodValidation:
             })
 
             status, data = http_client.send_authenticated_request_with_retry(
-                "POST", "/services/data/v64.0/composite", large_body, max_retries=3
+                "POST", "/services/data/v65.0/composite", large_body, max_retries=3
             )
 
             assert status == 200
@@ -431,7 +431,7 @@ class TestHTTPMethodValidation:
             body = '{"Name": "Updated Account Name"}'
 
             status, data = http_client.send_authenticated_request_with_retry(
-                "PATCH", "/services/data/v64.0/sobjects/Account/001", body, custom_headers, max_retries=3
+                "PATCH", "/services/data/v65.0/sobjects/Account/001", body, custom_headers, max_retries=3
             )
 
             assert status == 200
@@ -452,7 +452,7 @@ class TestHTTPMethodValidation:
             ]
 
             status, data = http_client.send_authenticated_request_with_retry(
-                "DELETE", "/services/data/v64.0/sobjects/Account/001", max_retries=3
+                "DELETE", "/services/data/v65.0/sobjects/Account/001", max_retries=3
             )
 
             assert status == 204
@@ -474,7 +474,7 @@ class TestRetryCountValidation:
         """Create a mock AuthManager for testing."""
         auth_manager = Mock(spec=AuthManager)
         auth_manager.instance_url = "https://test.my.salesforce.com"
-        auth_manager.api_version = "v64.0"
+        auth_manager.api_version = "v65.0"
         auth_manager.access_token = "test_token_123"
         auth_manager.get_proxy_config.return_value = None
         auth_manager.get_instance_netloc.return_value = "test.my.salesforce.com"
@@ -502,7 +502,7 @@ class TestRetryCountValidation:
 
             with pytest.raises(QueryTimeoutError, match="QUERY_TIMEOUT"):
                 http_client.send_authenticated_request_with_retry(
-                    "GET", "/services/data/v64.0/query", max_retries=max_retries
+                    "GET", "/services/data/v65.0/query", max_retries=max_retries
                 )
 
             # Should try initial + max_retries attempts
@@ -516,7 +516,7 @@ class TestRetryCountValidation:
 
             with pytest.raises(QueryTimeoutError, match="QUERY_TIMEOUT"):
                 http_client.send_authenticated_request_with_retry(
-                    "GET", "/services/data/v64.0/query", max_retries=-1
+                    "GET", "/services/data/v65.0/query", max_retries=-1
                 )
 
             # Should only try once (no retries for negative count)
@@ -529,7 +529,7 @@ class TestRetryCountValidation:
 
             with pytest.raises(QueryTimeoutError, match="QUERY_TIMEOUT"):
                 http_client.send_authenticated_request_with_retry(
-                    "GET", "/services/data/v64.0/query", max_retries=0
+                    "GET", "/services/data/v65.0/query", max_retries=0
                 )
 
             # Should only try once (no retries)
@@ -545,7 +545,7 @@ class TestRetryCountValidation:
 
             start_time = time.time()
             status, data = http_client.send_authenticated_request_with_retry(
-                "GET", "/services/data/v64.0/query", max_retries=50
+                "GET", "/services/data/v65.0/query", max_retries=50
             )
             end_time = time.time()
 
@@ -565,8 +565,8 @@ class TestRetryCountValidation:
             mock_internal.side_effect = responses
 
             method = "POST"
-            endpoint = "/services/data/v64.0/composite/batch"
-            body = '{"batchRequests": [{"method": "GET", "url": "/services/data/v64.0/sobjects/Account/001"}]}'
+            endpoint = "/services/data/v65.0/composite/batch"
+            body = '{"batchRequests": [{"method": "GET", "url": "/services/data/v65.0/sobjects/Account/001"}]}'
             headers = {"Custom-Header": "test-value", "X-Batch-ID": "batch-123"}
 
             status, data = http_client.send_authenticated_request_with_retry(
@@ -594,7 +594,7 @@ class TestRetryCountValidation:
             ]
 
             status, data = http_client.send_authenticated_request_with_retry(
-                "GET", "/services/data/v64.0/query", max_retries=3
+                "GET", "/services/data/v65.0/query", max_retries=3
             )
 
             assert status == 200
@@ -628,7 +628,7 @@ class TestConcurrentRequestScenarios:
         """Create a mock AuthManager for testing."""
         auth_manager = Mock(spec=AuthManager)
         auth_manager.instance_url = "https://test.my.salesforce.com"
-        auth_manager.api_version = "v64.0"
+        auth_manager.api_version = "v65.0"
         auth_manager.access_token = "test_token_123"
         auth_manager.get_proxy_config.return_value = None
         auth_manager.get_instance_netloc.return_value = "test.my.salesforce.com"
@@ -658,7 +658,7 @@ class TestConcurrentRequestScenarios:
                 ]
 
                 status, data = client.send_authenticated_request_with_retry(
-                    "GET", f"/services/data/v64.0/query?client={client_id}", max_retries=3
+                    "GET", f"/services/data/v65.0/query?client={client_id}", max_retries=3
                 )
                 
                 return (client_id, status, data, mock_internal.call_count)
@@ -714,7 +714,7 @@ class TestConcurrentRequestScenarios:
                     ]
 
                 status, data = http_client.send_authenticated_request_with_retry(
-                    "GET", f"/services/data/v64.0/query?req={request_id}", max_retries=3
+                    "GET", f"/services/data/v65.0/query?req={request_id}", max_retries=3
                 )
                 
                 return (request_id, status, data, mock_internal.call_count, current_count)
@@ -751,7 +751,7 @@ class TestConcurrentRequestScenarios:
                 mock_internal.side_effect = timeout_responses
 
                 status, data = http_client.send_authenticated_request_with_retry(
-                    "GET", f"/services/data/v64.0/query?req={request_id}", max_retries=max_retries
+                    "GET", f"/services/data/v65.0/query?req={request_id}", max_retries=max_retries
                 )
                 
                 return (request_id, status, data, mock_internal.call_count, max_retries)
@@ -803,7 +803,7 @@ class TestConcurrentRequestScenarios:
 
                 try:
                     status, data = http_client.send_authenticated_request_with_retry(
-                        "GET", f"/services/data/v64.0/query?scenario={scenario_id}", max_retries=3
+                        "GET", f"/services/data/v65.0/query?scenario={scenario_id}", max_retries=3
                     )
                     return (scenario_id, status, data, mock_internal.call_count, "success")
                 except Exception as e:
@@ -861,7 +861,7 @@ class TestConcurrentRequestScenarios:
                 ]
 
                 status, data = http_client.send_authenticated_request_with_retry(
-                    "GET", f"/services/data/v64.0/query?req={request_id}", max_retries=3
+                    "GET", f"/services/data/v65.0/query?req={request_id}", max_retries=3
                 )
                 
                 return (request_id, status, data)

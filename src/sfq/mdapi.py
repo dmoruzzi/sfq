@@ -65,7 +65,7 @@ def _dict_to_manifest(
     Convert a normalized dictionary into a Salesforce package.xml-compatible XML string.
 
     Example:
-        {"ApexComponent": ["SiteFooter", "SiteHeader"]} with "v64.0" ->
+        {"ApexComponent": ["SiteFooter", "SiteHeader"]} with "v65.0" ->
 
         <Package xmlns="http://soap.sforce.com/2006/04/metadata">
             <types>
@@ -73,14 +73,14 @@ def _dict_to_manifest(
                 <members>SiteHeader</members>
                 <name>ApexComponent</name>
             </types>
-            <version>64.0</version>
+            <version>65.0</version>
         </Package>
 
     Notes:
-        - version_string is expected as "v64.0" or "64.0"; we strip a leading 'v'.
+        - version_string is expected as "v65.0" or "65.0"; we strip a leading 'v'.
         - Caller is responsible for input validation.
     """
-    # Extract numeric API version; tolerate both "v64.0" and "64.0"
+    # Extract numeric API version; tolerate both "v65.0" and "65.0"
     api_version = str(version_string).strip()
     if api_version.lower().startswith("v"):
         api_version = api_version[1:]
@@ -132,11 +132,11 @@ def _build_retrieve_envelope(
     Args:
         manifest_xml: The package.xml content to embed as <unpackaged>.
         session_id: Salesforce session ID (sf.access_token).
-        mdapi_version: Version string used for the MDAPI endpoint (e.g. "v64.0" or "64.0").
+        mdapi_version: Version string used for the MDAPI endpoint (e.g. "v65.0" or "65.0").
         api_version_override: If provided, the <apiVersion> value to send in retrieveRequest.
                               Defaults to mdapi_version stripped of any leading 'v'.
     """
-    # Normalize "v64.0" -> "64.0" for the value inside <apiVersion>
+    # Normalize "v65.0" -> "65.0" for the value inside <apiVersion>
     version_value = (
         api_version_override.strip()
         if api_version_override
@@ -418,7 +418,7 @@ def mdapi_retrieve_raw(
         package: Either:
             - dict[str, list[str]] mapping metadata types to members, or
             - list[str] of metadata types (treated as wildcard '*')
-        mdapi_version: Metadata API endpoint version (e.g., "v64.0").
+        mdapi_version: Metadata API endpoint version (e.g., "v65.0").
         poll_interval_seconds: Delay between polling attempts.
         max_poll_seconds: Max total time to poll before aborting.
 
@@ -505,7 +505,7 @@ def mdapi_retrieve_raw(
     )
 
     # Prepare endpoint and headers
-    # Normalize version for endpoint: "v64.0" or "64.0" -> "64.0"
+    # Normalize version for endpoint: "v65.0" or "65.0" -> "65.0"
     version_for_endpoint = str(mdapi_version).strip()
     if version_for_endpoint.lower().startswith("v"):
         version_for_endpoint = version_for_endpoint[1:]

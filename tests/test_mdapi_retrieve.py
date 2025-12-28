@@ -72,7 +72,7 @@ class DummySF(SFAuth):
         self,
         access_token: str,
         responses: List[Dict[str, Any]],
-        api_version: str = "v64.0",
+        api_version: str = "v65.0",
     ):
         super().__init__(
             instance_url="https://example.my.salesforce.com",
@@ -150,13 +150,13 @@ def test_list_to_dict_normalization():
 def test_dict_to_manifest_structure_and_version_from_string_inputs():
     contents = {"ApexComponent": ["SiteFooter", "SiteHeader"]}
 
-    # Accepts plain "64.0"
-    manifest_64 = _dict_to_manifest(contents, "64.0")
+    # Accepts plain "65.0"
+    manifest_64 = _dict_to_manifest(contents, "65.0")
     assert '<Package xmlns="http://soap.sforce.com/2006/04/metadata">' in manifest_64
     assert "<name>ApexComponent</name>" in manifest_64
     assert "<members>SiteFooter</members>" in manifest_64
     assert "<members>SiteHeader</members>" in manifest_64
-    assert "<version>64.0</version>" in manifest_64
+    assert "<version>65.0</version>" in manifest_64
 
     # Accepts "v65.0" and strips "v"
     manifest_65 = _dict_to_manifest(contents, "v65.0")
@@ -165,25 +165,25 @@ def test_dict_to_manifest_structure_and_version_from_string_inputs():
 
 def test_build_retrieve_envelope_uses_token_and_normalizes_versions():
     contents = {"ApexComponent": ["*"]}
-    manifest = _dict_to_manifest(contents, "v64.0")
+    manifest = _dict_to_manifest(contents, "v65.0")
 
     envelope = _build_retrieve_envelope(
         manifest_xml=manifest,
         session_id="00Dxx_token",
-        mdapi_version="v64.0",
+        mdapi_version="v65.0",
     )
 
     # Session header present
     assert "<met:sessionId>00Dxx_token</met:sessionId>" in envelope
 
     # <apiVersion> uses mdapi_version stripped of leading "v"
-    assert "<apiVersion>64.0</apiVersion>" in envelope
+    assert "<apiVersion>65.0</apiVersion>" in envelope
 
     # <unpackaged> content comes from manifest children (no outer <Package>)
     assert "<unpackaged>" in envelope
     assert "<members>*</members>" in envelope
     assert "<name>ApexComponent</name>" in envelope
-    assert "<version>64.0</version>" in envelope
+    assert "<version>65.0</version>" in envelope
 
 
 def test_build_check_retrieve_status_envelope_basic_shape():
@@ -217,7 +217,7 @@ def test_mdapi_retrieve_success_flow_via_top_level_helper():
     with zipfile.ZipFile(mem, "w") as zf:
         zf.writestr(
             "unpackaged/package.xml",
-            '<Package xmlns="http://soap.sforce.com/2006/04/metadata"><version>64.0</version></Package>',
+            '<Package xmlns="http://soap.sforce.com/2006/04/metadata"><version>65.0</version></Package>',
         )
     zip_bytes = mem.getvalue()
     zip_b64 = base64.b64encode(zip_bytes).decode("ascii")
@@ -253,12 +253,12 @@ def test_mdapi_retrieve_success_flow_via_top_level_helper():
         },
     ]
 
-    sf = DummySF(access_token="00Dxx_token", responses=responses, api_version="v64.0")
+    sf = DummySF(access_token="00Dxx_token", responses=responses, api_version="v65.0")
 
     result = mdapi_retrieve(
         sf=sf,
         package={"ApexComponent": ["*"]},
-        mdapi_version="v64.0",
+        mdapi_version="v65.0",
         poll_interval_seconds=0.0,
         max_poll_seconds=5.0,
     )
@@ -268,14 +268,14 @@ def test_mdapi_retrieve_success_flow_via_top_level_helper():
 
     # Validate HTTP interactions: 1 initial + 2 polls to the correct MDAPI version
     assert len(sf._http_client.requests) == 3
-    assert sf._http_client.requests[0]["endpoint"].endswith("/services/Soap/m/64.0")
+    assert sf._http_client.requests[0]["endpoint"].endswith("/services/Soap/m/65.0")
 
 
 def test_mdapi_retrieve_via_sfauth_method_explicit_version():
     """
     Verify SFAuth.mdapi_retrieve() wrapper passes through mdapi_version to mdapi_retrieve.
 
-    We call with explicit mdapi_version="v64.0" so we can assert the endpoint choice.
+    We call with explicit mdapi_version="v65.0" so we can assert the endpoint choice.
     """
     async_id = "09Sxx0000000002AAA"
 
@@ -286,7 +286,7 @@ def test_mdapi_retrieve_via_sfauth_method_explicit_version():
     with zipfile.ZipFile(mem, "w") as zf:
         zf.writestr(
             "unpackaged/package.xml",
-            '<Package xmlns="http://soap.sforce.com/2006/04/metadata"><version>64.0</version></Package>',
+            '<Package xmlns="http://soap.sforce.com/2006/04/metadata"><version>65.0</version></Package>',
         )
     zip_bytes = mem.getvalue()
     zip_b64 = base64.b64encode(zip_bytes).decode("ascii")
@@ -313,7 +313,7 @@ def test_mdapi_retrieve_via_sfauth_method_explicit_version():
 
     result = sf.mdapi_retrieve(
         package=["ApexComponent"],
-        mdapi_version="v64.0",
+        mdapi_version="v65.0",
         poll_interval_seconds=0.0,
         max_poll_seconds=5.0,
     )
@@ -321,8 +321,8 @@ def test_mdapi_retrieve_via_sfauth_method_explicit_version():
     # Wrapper returns whatever mdapi_retrieve returns; assert dict + correct endpoint wiring.
     assert isinstance(result, dict)
 
-    # Ensure MDAPI endpoint matches mdapi_version ("64.0"), not sf.api_version ("65.0")
-    assert sf._http_client.requests[0]["endpoint"].endswith("/services/Soap/m/64.0")
+    # Ensure MDAPI endpoint matches mdapi_version ("65.0"), not sf.api_version ("65.0")
+    assert sf._http_client.requests[0]["endpoint"].endswith("/services/Soap/m/65.0")
 
 
 # ------------------------

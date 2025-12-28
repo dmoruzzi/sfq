@@ -36,7 +36,7 @@ class TestQueryClient:
     @pytest.fixture
     def query_client(self, mock_http_client):
         """Create a QueryClient instance for testing."""
-        return QueryClient(mock_http_client, api_version="v64.0")
+        return QueryClient(mock_http_client, api_version="v65.0")
 
     def test_init(self, mock_http_client):
         """Test QueryClient initialization."""
@@ -47,7 +47,7 @@ class TestQueryClient:
     def test_init_default_api_version(self, mock_http_client):
         """Test QueryClient initialization with default API version."""
         client = QueryClient(mock_http_client)
-        assert client.api_version == "v64.0"
+        assert client.api_version == "v65.0"
 
     def test_query_success(self, query_client, mock_http_client):
         """Test successful SOQL query execution."""
@@ -76,7 +76,7 @@ class TestQueryClient:
         # Verify the correct endpoint was called
         mock_http_client.send_authenticated_request.assert_called_once_with(
             method="GET",
-            endpoint="/services/data/v64.0/query?q=SELECT%20Id%2C%20Name%20FROM%20Account%20LIMIT%202",
+            endpoint="/services/data/v65.0/query?q=SELECT%20Id%2C%20Name%20FROM%20Account%20LIMIT%202",
         )
 
     def test_query_tooling_api(self, query_client, mock_http_client):
@@ -102,7 +102,7 @@ class TestQueryClient:
         # Verify the tooling endpoint was called
         mock_http_client.send_authenticated_request.assert_called_once_with(
             method="GET",
-            endpoint="/services/data/v64.0/tooling/query?q=SELECT%20Id%2C%20Name%20FROM%20ApexClass%20LIMIT%201",
+            endpoint="/services/data/v65.0/tooling/query?q=SELECT%20Id%2C%20Name%20FROM%20ApexClass%20LIMIT%201",
         )
 
     def test_tooling_query_convenience_method(self, query_client, mock_http_client):
@@ -126,7 +126,7 @@ class TestQueryClient:
         # Verify the tooling endpoint was called
         mock_http_client.send_authenticated_request.assert_called_once_with(
             method="GET",
-            endpoint="/services/data/v64.0/tooling/query?q=SELECT%20Id%2C%20Name%20FROM%20ApexClass%20LIMIT%201",
+            endpoint="/services/data/v65.0/tooling/query?q=SELECT%20Id%2C%20Name%20FROM%20ApexClass%20LIMIT%201",
         )
 
     def test_query_failure(self, query_client, mock_http_client):
@@ -171,7 +171,7 @@ class TestQueryClient:
         initial_result = {
             "totalSize": 4,
             "done": False,
-            "nextRecordsUrl": "/services/data/v64.0/query/01gXX0000000001-2000",
+            "nextRecordsUrl": "/services/data/v65.0/query/01gXX0000000001-2000",
             "records": [
                 {"Id": "001000000000001", "Name": "Test Account 1"},
                 {"Id": "001000000000002", "Name": "Test Account 2"},
@@ -200,7 +200,7 @@ class TestQueryClient:
         # Verify the next page was requested
         mock_http_client.send_request.assert_called_once_with(
             method="GET",
-            endpoint="/services/data/v64.0/query/01gXX0000000001-2000",
+            endpoint="/services/data/v65.0/query/01gXX0000000001-2000",
             headers=mock_http_client.get_common_headers.return_value,
         )
 
@@ -211,7 +211,7 @@ class TestQueryClient:
         initial_result = {
             "totalSize": 4,
             "done": False,
-            "nextRecordsUrl": "/services/data/v64.0/query/01gXX0000000001-2000",
+            "nextRecordsUrl": "/services/data/v65.0/query/01gXX0000000001-2000",
             "records": [
                 {"Id": "001000000000001", "Name": "Test Account 1"},
                 {"Id": "001000000000002", "Name": "Test Account 2"},
@@ -277,7 +277,7 @@ class TestQueryClient:
         # Verify the composite batch endpoint was called
         mock_http_client.send_authenticated_request.assert_called_once()
         call_args = mock_http_client.send_authenticated_request.call_args
-        assert call_args[1]["endpoint"] == "/services/data/v64.0/composite/batch"
+        assert call_args[1]["endpoint"] == "/services/data/v65.0/composite/batch"
         assert call_args[1]["method"] == "POST"
 
     def test_cquery_empty_dict(self, query_client):
@@ -403,7 +403,7 @@ class TestQueryClient:
         assert result["a00"] == "CustomObject__c"
 
         mock_http_client.send_authenticated_request.assert_called_once_with(
-            method="GET", endpoint="/services/data/v64.0/sobjects/"
+            method="GET", endpoint="/services/data/v65.0/sobjects/"
         )
 
     def test_get_sobject_prefixes_name_mapping(self, query_client, mock_http_client):
@@ -560,7 +560,7 @@ class TestQueryClient:
         """Test string representation of QueryClient."""
         repr_str = repr(query_client)
         assert "QueryClient" in repr_str
-        assert "v64.0" in repr_str
+        assert "v65.0" in repr_str
         assert "Mock" in repr_str  # Should show the mock HTTP client type
 
 
@@ -584,7 +584,7 @@ class TestCompositeQueryFunctionality:
     @pytest.fixture
     def query_client(self, mock_http_client):
         """Create a QueryClient instance for testing."""
-        return QueryClient(mock_http_client, api_version="v64.0")
+        return QueryClient(mock_http_client, api_version="v65.0")
 
     def test_cquery_threading_with_large_dataset(self, query_client, mock_http_client):
         """Test composite query threading with a large number of queries."""
@@ -649,7 +649,7 @@ class TestCompositeQueryFunctionality:
                     "result": {
                         "totalSize": 4,
                         "done": False,
-                        "nextRecordsUrl": "/services/data/v64.0/query/01gXX0000000001-2000",
+                        "nextRecordsUrl": "/services/data/v65.0/query/01gXX0000000001-2000",
                         "records": [
                             {"Id": "001000000000001", "Name": "Test Account 1"},
                             {"Id": "001000000000002", "Name": "Test Account 2"},

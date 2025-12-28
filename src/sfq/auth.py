@@ -31,7 +31,7 @@ class AuthManager:
         client_id: str,
         refresh_token: str,
         client_secret: str,
-        api_version: str = "v64.0",
+        api_version: str = "v65.0",
         token_endpoint: str = "/services/oauth2/token",
         access_token: Optional[str] = None,
         token_expiration_time: Optional[float] = None,

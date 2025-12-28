@@ -27,7 +27,7 @@ class TestServerTimeoutScenarios:
         """Create a mock AuthManager for testing."""
         auth_manager = Mock(spec=AuthManager)
         auth_manager.instance_url = "https://test.my.salesforce.com"
-        auth_manager.api_version = "v64.0"
+        auth_manager.api_version = "v65.0"
         auth_manager.access_token = "test_token_123"
         auth_manager.get_proxy_config.return_value = None
         auth_manager.get_instance_netloc.return_value = "test.my.salesforce.com"
@@ -56,7 +56,7 @@ class TestServerTimeoutScenarios:
             ]
 
             status, data = http_client.send_authenticated_request_with_retry(
-                "GET", "/services/data/v64.0/query", max_retries=3
+                "GET", "/services/data/v65.0/query", max_retries=3
             )
 
             assert status == 200
@@ -73,7 +73,7 @@ class TestServerTimeoutScenarios:
             ]
 
             status, data = http_client.send_authenticated_request_with_retry(
-                "POST", "/services/data/v64.0/composite", max_retries=3
+                "POST", "/services/data/v65.0/composite", max_retries=3
             )
 
             assert status == 200
@@ -91,7 +91,7 @@ class TestServerTimeoutScenarios:
 
             with pytest.raises(QueryTimeoutError, match="QUERY_TIMEOUT"):
                 http_client.send_authenticated_request_with_retry(
-                    "GET", "/services/data/v64.0/query", max_retries=2
+                    "GET", "/services/data/v65.0/query", max_retries=2
                 )
 
             # Should try initial + 2 retries = 3 total attempts
@@ -108,7 +108,7 @@ class TestServerTimeoutScenarios:
             ]
 
             status, data = http_client.send_authenticated_request_with_retry(
-                "PATCH", "/services/data/v64.0/sobjects/Account/001", max_retries=3
+                "PATCH", "/services/data/v65.0/sobjects/Account/001", max_retries=3
             )
 
             assert status == 200
@@ -125,7 +125,7 @@ class TestServerTimeoutScenarios:
             ]
 
             method = "POST"
-            endpoint = "/services/data/v64.0/composite/batch"
+            endpoint = "/services/data/v65.0/composite/batch"
             body = '{"batchRequests": []}'
             additional_headers = {"Custom-Header": "test-value", "X-Request-ID": "12345"}
 
@@ -154,7 +154,7 @@ class TestServerTimeoutScenarios:
             ]
 
             status, data = http_client.send_authenticated_request_with_retry(
-                "GET", "/services/data/v64.0/query", max_retries=3
+                "GET", "/services/data/v65.0/query", max_retries=3
             )
 
             assert status == 200
@@ -193,7 +193,7 @@ class TestConnectionTimeoutScenarios:
         """Create a mock AuthManager for testing."""
         auth_manager = Mock(spec=AuthManager)
         auth_manager.instance_url = "https://test.my.salesforce.com"
-        auth_manager.api_version = "v64.0"
+        auth_manager.api_version = "v65.0"
         auth_manager.access_token = "test_token_123"
         auth_manager.get_proxy_config.return_value = None
         auth_manager.get_instance_netloc.return_value = "test.my.salesforce.com"
@@ -226,7 +226,7 @@ class TestConnectionTimeoutScenarios:
             ]
 
             status, data = http_client.send_authenticated_request_with_retry(
-                "GET", "/services/data/v64.0/tooling/query", max_retries=3
+                "GET", "/services/data/v65.0/tooling/query", max_retries=3
             )
 
             assert status == 200
@@ -250,7 +250,7 @@ class TestConnectionTimeoutScenarios:
             ]
 
             status, data = http_client.send_authenticated_request_with_retry(
-                "POST", "/services/data/v64.0/composite", max_retries=3
+                "POST", "/services/data/v65.0/composite", max_retries=3
             )
 
             assert status == 200
@@ -269,7 +269,7 @@ class TestConnectionTimeoutScenarios:
 
             with pytest.raises(QueryTimeoutError, match="QUERY_TIMEOUT"):
                 http_client.send_authenticated_request_with_retry(
-                    "DELETE", "/services/data/v64.0/sobjects/Account/001", max_retries=2
+                    "DELETE", "/services/data/v65.0/sobjects/Account/001", max_retries=2
                 )
 
             # Should try initial + 2 retries = 3 total attempts
@@ -292,7 +292,7 @@ class TestConnectionTimeoutScenarios:
             ]
 
             status, data = http_client.send_authenticated_request_with_retry(
-                "PATCH", "/services/data/v64.0/sobjects/Contact/003", max_retries=3
+                "PATCH", "/services/data/v65.0/sobjects/Contact/003", max_retries=3
             )
 
             assert status == 200
@@ -314,7 +314,7 @@ class TestConnectionTimeoutScenarios:
             ]
 
             status, data = http_client.send_authenticated_request_with_retry(
-                "GET", "/services/data/v64.0/query", max_retries=2
+                "GET", "/services/data/v65.0/query", max_retries=2
             )
 
             assert status == 200
@@ -347,7 +347,7 @@ class TestMixedTimeoutScenarios:
         """Create a mock AuthManager for testing."""
         auth_manager = Mock(spec=AuthManager)
         auth_manager.instance_url = "https://test.my.salesforce.com"
-        auth_manager.api_version = "v64.0"
+        auth_manager.api_version = "v65.0"
         auth_manager.access_token = "test_token_123"
         auth_manager.get_proxy_config.return_value = None
         auth_manager.get_instance_netloc.return_value = "test.my.salesforce.com"
@@ -381,7 +381,7 @@ class TestMixedTimeoutScenarios:
             ]
 
             status, data = http_client.send_authenticated_request_with_retry(
-                "GET", "/services/data/v64.0/query", max_retries=3
+                "GET", "/services/data/v65.0/query", max_retries=3
             )
 
             assert status == 200
@@ -403,7 +403,7 @@ class TestMixedTimeoutScenarios:
             ]
 
             status, data = http_client.send_authenticated_request_with_retry(
-                "POST", "/services/data/v64.0/composite/batch", max_retries=3
+                "POST", "/services/data/v65.0/composite/batch", max_retries=3
             )
 
             assert status == 200
@@ -422,7 +422,7 @@ class TestMixedTimeoutScenarios:
             ]
 
             status, data = http_client.send_authenticated_request_with_retry(
-                "PATCH", "/services/data/v64.0/sobjects/Account/001", max_retries=4
+                "PATCH", "/services/data/v65.0/sobjects/Account/001", max_retries=4
             )
 
             assert status == 200
@@ -445,7 +445,7 @@ class TestMixedTimeoutScenarios:
 
             with pytest.raises(QueryTimeoutError, match="QUERY_TIMEOUT"):
                 http_client.send_authenticated_request_with_retry(
-                    "GET", "/services/data/v64.0/query", max_retries=2
+                    "GET", "/services/data/v65.0/query", max_retries=2
                 )
 
             # Should try initial + 2 retries = 3 total attempts
@@ -467,7 +467,7 @@ class TestMixedTimeoutScenarios:
             ]
 
             status, data = http_client.send_authenticated_request_with_retry(
-                "GET", "/services/data/v64.0/query", max_retries=3
+                "GET", "/services/data/v65.0/query", max_retries=3
             )
 
             assert status == 200
@@ -508,7 +508,7 @@ class TestNonTimeoutErrorHandling:
         """Create a mock AuthManager for testing."""
         auth_manager = Mock(spec=AuthManager)
         auth_manager.instance_url = "https://test.my.salesforce.com"
-        auth_manager.api_version = "v64.0"
+        auth_manager.api_version = "v65.0"
         auth_manager.access_token = "test_token_123"
         auth_manager.get_proxy_config.return_value = None
         auth_manager.get_instance_netloc.return_value = "test.my.salesforce.com"
@@ -534,7 +534,7 @@ class TestNonTimeoutErrorHandling:
             mock_internal.return_value = (400, '{"error": "INVALID_QUERY", "message": "Invalid syntax"}')
 
             status, data = http_client.send_authenticated_request_with_retry(
-                "GET", "/services/data/v64.0/query", max_retries=3
+                "GET", "/services/data/v65.0/query", max_retries=3
             )
 
             assert status == 400
@@ -549,7 +549,7 @@ class TestNonTimeoutErrorHandling:
             mock_internal.return_value = (500, "Internal Server Error")
 
             status, data = http_client.send_authenticated_request_with_retry(
-                "POST", "/services/data/v64.0/composite", max_retries=3
+                "POST", "/services/data/v65.0/composite", max_retries=3
             )
 
             assert status == 500
@@ -564,7 +564,7 @@ class TestNonTimeoutErrorHandling:
             mock_internal.return_value = (401, '{"error": "INVALID_SESSION_ID"}')
 
             status, data = http_client.send_authenticated_request_with_retry(
-                "GET", "/services/data/v64.0/query", max_retries=3
+                "GET", "/services/data/v65.0/query", max_retries=3
             )
 
             assert status == 401
@@ -582,7 +582,7 @@ class TestNonTimeoutErrorHandling:
 
             with pytest.raises(ValueError, match="Invalid parameter"):
                 http_client.send_authenticated_request_with_retry(
-                    "GET", "/services/data/v64.0/query", max_retries=3
+                    "GET", "/services/data/v65.0/query", max_retries=3
                 )
 
             # Should only be called once (no retries)
@@ -599,7 +599,7 @@ class TestNonTimeoutErrorHandling:
 
             with pytest.raises(OSError, match="Connection refused"):
                 http_client.send_authenticated_request_with_retry(
-                    "GET", "/services/data/v64.0/query", max_retries=3
+                    "GET", "/services/data/v65.0/query", max_retries=3
                 )
 
             # Should only be called once (no retries)
@@ -611,7 +611,7 @@ class TestNonTimeoutErrorHandling:
             mock_internal.return_value = (200, '{"records": []}')
 
             status, data = http_client.send_authenticated_request_with_retry(
-                "GET", "/services/data/v64.0/query", max_retries=3
+                "GET", "/services/data/v65.0/query", max_retries=3
             )
 
             assert status == 200
@@ -630,7 +630,7 @@ class TestNonTimeoutErrorHandling:
 
             with pytest.raises(ValueError, match="Invalid parameter"):
                 http_client.send_authenticated_request_with_retry(
-                    "GET", "/services/data/v64.0/query", max_retries=3
+                    "GET", "/services/data/v65.0/query", max_retries=3
                 )
 
             # Verify debug logging for non-timeout exception
@@ -655,7 +655,7 @@ class TestQueryClientIntegration:
         """Create a mock AuthManager for testing."""
         auth_manager = Mock(spec=AuthManager)
         auth_manager.instance_url = "https://test.my.salesforce.com"
-        auth_manager.api_version = "v64.0"
+        auth_manager.api_version = "v65.0"
         auth_manager.access_token = "test_token_123"
         auth_manager.get_proxy_config.return_value = None
         auth_manager.get_instance_netloc.return_value = "test.my.salesforce.com"
@@ -677,7 +677,7 @@ class TestQueryClientIntegration:
     @pytest.fixture
     def query_client(self, http_client):
         """Create QueryClient instance for testing."""
-        return QueryClient(http_client, api_version="v64.0")
+        return QueryClient(http_client, api_version="v65.0")
 
     def test_standard_query_with_server_timeout_retry_success(self, query_client, http_client):
         """Test standard SOQL query with server timeout that succeeds on retry."""
@@ -823,7 +823,7 @@ class TestQueryClientIntegration:
             mock_auth_request.return_value = (200, json.dumps({
                 "totalSize": 4,
                 "done": False,
-                "nextRecordsUrl": "/services/data/v64.0/query/01gXX0000000001-2000",
+                "nextRecordsUrl": "/services/data/v65.0/query/01gXX0000000001-2000",
                 "records": [
                     {"Id": "001000000000001", "Name": "Test Account 1"},
                     {"Id": "001000000000002", "Name": "Test Account 2"}

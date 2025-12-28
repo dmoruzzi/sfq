@@ -228,7 +228,7 @@ class TestAttributeCompatibility:
             client_id="test_client_id",
             refresh_token="test_refresh_token",
             client_secret="test_client_secret",
-            api_version="v64.0",
+            api_version="v65.0",
             user_agent="test_agent",
             sforce_client="test_client",
         )
@@ -256,7 +256,7 @@ class TestAttributeCompatibility:
     def test_api_version_attribute(self, mock_sf_auth):
         """Test that api_version attribute is accessible."""
         assert hasattr(mock_sf_auth, "api_version")
-        assert mock_sf_auth.api_version == "v64.0"
+        assert mock_sf_auth.api_version == "v65.0"
 
     def test_token_endpoint_attribute(self, mock_sf_auth):
         """Test that token_endpoint attribute is accessible."""
@@ -612,7 +612,7 @@ class TestBehaviorConsistency:
                 {
                     "records": [{"Id": "001"}],
                     "totalSize": 2,
-                    "nextRecordsUrl": "/services/data/v64.0/query/next",
+                    "nextRecordsUrl": "/services/data/v65.0/query/next",
                     "done": False,
                 }
             ),
@@ -648,7 +648,7 @@ class TestBehaviorConsistency:
     def test_default_parameter_values(self, mock_sf_auth):
         """Test that default parameter values are preserved."""
         # Test api_version default
-        assert mock_sf_auth.api_version == "v64.0"
+        assert mock_sf_auth.api_version == "v65.0"
 
         # Test token_endpoint default
         assert mock_sf_auth.token_endpoint == "/services/oauth2/token"

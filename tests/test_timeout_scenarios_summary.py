@@ -25,7 +25,7 @@ class TestTimeoutScenariosCoverage:
         """Create a mock AuthManager for testing."""
         auth_manager = Mock(spec=AuthManager)
         auth_manager.instance_url = "https://test.my.salesforce.com"
-        auth_manager.api_version = "v64.0"
+        auth_manager.api_version = "v65.0"
         auth_manager.access_token = "test_token_123"
         auth_manager.get_proxy_config.return_value = None
         auth_manager.get_instance_netloc.return_value = "test.my.salesforce.com"
@@ -47,7 +47,7 @@ class TestTimeoutScenariosCoverage:
     @pytest.fixture
     def query_client(self, http_client):
         """Create QueryClient instance for testing."""
-        return QueryClient(http_client, api_version="v64.0")
+        return QueryClient(http_client, api_version="v65.0")
 
     def test_server_timeout_detection_and_retry_behavior(self, http_client):
         """
@@ -68,7 +68,7 @@ class TestTimeoutScenariosCoverage:
             ]
 
             status, data = http_client.send_authenticated_request_with_retry(
-                "GET", "/services/data/v64.0/query", max_retries=3
+                "GET", "/services/data/v65.0/query", max_retries=3
             )
 
             assert status == 200
@@ -84,7 +84,7 @@ class TestTimeoutScenariosCoverage:
 
             with pytest.raises(QueryTimeoutError, match="QUERY_TIMEOUT"):
                 http_client.send_authenticated_request_with_retry(
-                    "POST", "/services/data/v64.0/composite", max_retries=2
+                    "POST", "/services/data/v65.0/composite", max_retries=2
                 )
 
             assert mock_internal.call_count == 3  # Initial + 2 retries
@@ -110,7 +110,7 @@ class TestTimeoutScenariosCoverage:
             ]
 
             status, data = http_client.send_authenticated_request_with_retry(
-                "GET", "/services/data/v64.0/tooling/query", max_retries=3
+                "GET", "/services/data/v65.0/tooling/query", max_retries=3
             )
 
             assert status == 200
@@ -129,7 +129,7 @@ class TestTimeoutScenariosCoverage:
 
             with pytest.raises(QueryTimeoutError, match="QUERY_TIMEOUT"):
                 http_client.send_authenticated_request_with_retry(
-                    "DELETE", "/services/data/v64.0/sobjects/Account/001", max_retries=2
+                    "DELETE", "/services/data/v65.0/sobjects/Account/001", max_retries=2
                 )
 
             assert mock_internal.call_count == 3  # Initial + 2 retries
@@ -156,7 +156,7 @@ class TestTimeoutScenariosCoverage:
             ]
 
             status, data = http_client.send_authenticated_request_with_retry(
-                "POST", "/services/data/v64.0/composite/batch", max_retries=3
+                "POST", "/services/data/v65.0/composite/batch", max_retries=3
             )
 
             assert status == 200
@@ -175,7 +175,7 @@ class TestTimeoutScenariosCoverage:
             ]
 
             status, data = http_client.send_authenticated_request_with_retry(
-                "PATCH", "/services/data/v64.0/sobjects/Contact/003", max_retries=3
+                "PATCH", "/services/data/v65.0/sobjects/Contact/003", max_retries=3
             )
 
             assert status == 200
@@ -199,7 +199,7 @@ class TestTimeoutScenariosCoverage:
             mock_internal.return_value = (400, '{"error": "INVALID_QUERY", "message": "Invalid syntax"}')
 
             status, data = http_client.send_authenticated_request_with_retry(
-                "GET", "/services/data/v64.0/query", max_retries=3
+                "GET", "/services/data/v65.0/query", max_retries=3
             )
 
             assert status == 400
@@ -211,7 +211,7 @@ class TestTimeoutScenariosCoverage:
             mock_internal.return_value = (500, "Internal Server Error")
 
             status, data = http_client.send_authenticated_request_with_retry(
-                "POST", "/services/data/v64.0/composite", max_retries=3
+                "POST", "/services/data/v65.0/composite", max_retries=3
             )
 
             assert status == 500
@@ -225,7 +225,7 @@ class TestTimeoutScenariosCoverage:
 
             with pytest.raises(ValueError, match="Invalid parameter"):
                 http_client.send_authenticated_request_with_retry(
-                    "GET", "/services/data/v64.0/query", max_retries=3
+                    "GET", "/services/data/v65.0/query", max_retries=3
                 )
 
             assert mock_internal.call_count == 1  # No retries
@@ -235,7 +235,7 @@ class TestTimeoutScenariosCoverage:
             mock_internal.return_value = (200, '{"records": []}')
 
             status, data = http_client.send_authenticated_request_with_retry(
-                "GET", "/services/data/v64.0/query", max_retries=3
+                "GET", "/services/data/v65.0/query", max_retries=3
             )
 
             assert status == 200

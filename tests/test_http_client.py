@@ -24,7 +24,7 @@ class TestHTTPClient:
         """Create a mock AuthManager for testing."""
         auth_manager = Mock(spec=AuthManager)
         auth_manager.instance_url = "https://test.my.salesforce.com"
-        auth_manager.api_version = "v64.0"
+        auth_manager.api_version = "v65.0"
         auth_manager.access_token = "test_token_123"
         auth_manager.get_proxy_config.return_value = None
         auth_manager.get_instance_netloc.return_value = "test.my.salesforce.com"
@@ -278,7 +278,7 @@ class TestHTTPClient:
 
     def test_get_api_version(self, http_client):
         """Test getting API version."""
-        assert http_client.get_api_version() == "v64.0"
+        assert http_client.get_api_version() == "v65.0"
 
     @patch("sfq.http_client.HTTPClient.create_connection")
     def test_is_connection_healthy_success(self, mock_create_conn, http_client):
@@ -318,7 +318,7 @@ class TestHTTPClientIntegration:
         """Create AuthManager with proxy configuration."""
         auth_manager = Mock(spec=AuthManager)
         auth_manager.instance_url = "https://test.my.salesforce.com"
-        auth_manager.api_version = "v64.0"
+        auth_manager.api_version = "v65.0"
         auth_manager.access_token = "test_token_123"
         auth_manager.get_proxy_config.return_value = "https://proxy.example.com:8080"
         auth_manager.get_proxy_hostname_and_port.return_value = (
@@ -360,7 +360,7 @@ class TestHTTPClientIntegration:
         # Create client and make request
         client = HTTPClient(auth_manager_with_proxy)
         status, data = client.send_authenticated_request(
-            "GET", "/services/data/v64.0/query?q=SELECT+Id+FROM+Account"
+            "GET", "/services/data/v65.0/query?q=SELECT+Id+FROM+Account"
         )
 
         # Verify results

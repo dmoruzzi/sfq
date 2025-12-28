@@ -28,7 +28,7 @@ class QueryClient:
     def __init__(
         self,
         http_client: "HTTPClient",  # Forward reference to avoid circular import  # noqa: F821
-        api_version: str = "v64.0",
+        api_version: str = "v65.0",
     ) -> None:
         """
         Initialize the QueryClient with HTTP client and API version.

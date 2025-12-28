@@ -23,7 +23,7 @@ class TestHTTPClientRetry:
         """Create a mock AuthManager for testing."""
         auth_manager = Mock(spec=AuthManager)
         auth_manager.instance_url = "https://test.my.salesforce.com"
-        auth_manager.api_version = "v64.0"
+        auth_manager.api_version = "v65.0"
         auth_manager.access_token = "test_token_123"
         auth_manager.get_proxy_config.return_value = None
         auth_manager.get_instance_netloc.return_value = "test.my.salesforce.com"
@@ -52,7 +52,7 @@ class TestHTTPClientRetry:
         ]
 
         status, data = http_client.send_authenticated_request_with_retry(
-            "GET", "/services/data/v64.0/query", max_retries=3
+            "GET", "/services/data/v65.0/query", max_retries=3
         )
 
         assert status == 200
@@ -70,7 +70,7 @@ class TestHTTPClientRetry:
 
         with pytest.raises(QueryTimeoutError, match="QUERY_TIMEOUT"):
             http_client.send_authenticated_request_with_retry(
-                "GET", "/services/data/v64.0/query", max_retries=3
+                "GET", "/services/data/v65.0/query", max_retries=3
             )
 
         # Should try initial + 3 retries = 4 total attempts
@@ -90,7 +90,7 @@ class TestHTTPClientRetry:
         ]
 
         status, data = http_client.send_authenticated_request_with_retry(
-            "POST", "/services/data/v64.0/composite", max_retries=3
+            "POST", "/services/data/v65.0/composite", max_retries=3
         )
 
         assert status == 200
@@ -109,7 +109,7 @@ class TestHTTPClientRetry:
 
         with pytest.raises(QueryTimeoutError, match="QUERY_TIMEOUT"):
             http_client.send_authenticated_request_with_retry(
-                "GET", "/services/data/v64.0/query", max_retries=3
+                "GET", "/services/data/v65.0/query", max_retries=3
             )
 
         # Should try initial + 3 retries = 4 total attempts
@@ -130,7 +130,7 @@ class TestHTTPClientRetry:
         ]
 
         status, data = http_client.send_authenticated_request_with_retry(
-            "GET", "/services/data/v64.0/query", max_retries=3
+            "GET", "/services/data/v65.0/query", max_retries=3
         )
 
         assert status == 200
@@ -144,7 +144,7 @@ class TestHTTPClientRetry:
         mock_internal.return_value = (400, '{"error": "INVALID_QUERY"}')
 
         status, data = http_client.send_authenticated_request_with_retry(
-            "GET", "/services/data/v64.0/query", max_retries=3
+            "GET", "/services/data/v65.0/query", max_retries=3
         )
 
         assert status == 400
@@ -162,7 +162,7 @@ class TestHTTPClientRetry:
 
         with pytest.raises(ValueError, match="Invalid parameter"):
             http_client.send_authenticated_request_with_retry(
-                "GET", "/services/data/v64.0/query", max_retries=3
+                "GET", "/services/data/v65.0/query", max_retries=3
             )
 
         # Should only be called once (no retries)
@@ -174,7 +174,7 @@ class TestHTTPClientRetry:
         mock_internal.return_value = (200, '{"records": []}')
 
         status, data = http_client.send_authenticated_request_with_retry(
-            "GET", "/services/data/v64.0/query", max_retries=3
+            "GET", "/services/data/v65.0/query", max_retries=3
         )
 
         assert status == 200
@@ -192,7 +192,7 @@ class TestHTTPClientRetry:
         ]
 
         method = "POST"
-        endpoint = "/services/data/v64.0/composite"
+        endpoint = "/services/data/v65.0/composite"
         body = '{"compositeRequest": []}'
         additional_headers = {"Custom-Header": "test-value"}
 
@@ -222,7 +222,7 @@ class TestHTTPClientRetry:
 
         with pytest.raises(QueryTimeoutError, match="QUERY_TIMEOUT"):
             http_client.send_authenticated_request_with_retry(
-                "GET", "/services/data/v64.0/query", max_retries=1
+                "GET", "/services/data/v65.0/query", max_retries=1
             )
 
         # Should try initial + 1 retry = 2 total attempts
@@ -239,7 +239,7 @@ class TestHTTPClientRetry:
 
         with pytest.raises(QueryTimeoutError, match="QUERY_TIMEOUT"):
             http_client.send_authenticated_request_with_retry(
-                "GET", "/services/data/v64.0/query", max_retries=0
+                "GET", "/services/data/v65.0/query", max_retries=0
             )
 
         # Should only try once (no retries)
@@ -251,7 +251,7 @@ class TestHTTPClientRetry:
         mock_internal.return_value = (200, '{"records": []}')
 
         status, data = http_client.send_authenticated_request(
-            "GET", "/services/data/v64.0/query"
+            "GET", "/services/data/v65.0/query"
         )
 
         assert status == 200
@@ -269,7 +269,7 @@ class TestHTTPClientRetry:
 
         with pytest.raises(QueryTimeoutError, match="QUERY_TIMEOUT"):
             http_client.send_authenticated_request(
-                "GET", "/services/data/v64.0/query", max_retries=2
+                "GET", "/services/data/v65.0/query", max_retries=2
             )
 
         # Should try initial + 2 retries = 3 total attempts
@@ -292,7 +292,7 @@ class TestHTTPClientRetry:
         ]
 
         status, data = http_client.send_authenticated_request_with_retry(
-            "GET", "/services/data/v64.0/query", max_retries=3
+            "GET", "/services/data/v65.0/query", max_retries=3
         )
 
         assert status == 200
@@ -310,7 +310,7 @@ class TestHTTPClientRetry:
         ]
 
         status, data = http_client.send_authenticated_request_with_retry(
-            "GET", "/services/data/v64.0/query", max_retries=3
+            "GET", "/services/data/v65.0/query", max_retries=3
         )
 
         assert status == 200
@@ -347,7 +347,7 @@ class TestHTTPClientRetry:
 
         with pytest.raises(QueryTimeoutError, match="QUERY_TIMEOUT"):
             http_client.send_authenticated_request_with_retry(
-                "GET", "/services/data/v64.0/query", max_retries=2
+                "GET", "/services/data/v65.0/query", max_retries=2
             )
 
         # Verify error logging
@@ -373,7 +373,7 @@ class TestHTTPClientRetry:
         ]
 
         status, data = http_client.send_authenticated_request_with_retry(
-            "POST", "/services/data/v64.0/composite", max_retries=3
+            "POST", "/services/data/v65.0/composite", max_retries=3
         )
 
         assert status == 200
@@ -385,7 +385,7 @@ class TestHTTPClientRetry:
         
         initial_trace = trace_calls[0]
         assert "Starting request with retry capability" in initial_trace[0][0]
-        assert "POST /services/data/v64.0/composite" in initial_trace[0][1]
+        assert "POST /services/data/v65.0/composite" in initial_trace[0][1]
         assert 3 == initial_trace[0][2]  # max_retries
 
         # Verify debug logging for retry attempt
@@ -405,7 +405,7 @@ class TestHTTPClientRetry:
         assert "server" in retry_args  # timeout_type should be 'server'
         assert 1 in retry_args  # attempt number
         assert 4 in retry_args  # total attempts
-        assert "POST /services/data/v64.0/composite" in retry_args
+        assert "POST /services/data/v65.0/composite" in retry_args
         assert 400 in retry_args  # status code
 
         # Check successful retry recovery log
@@ -418,7 +418,7 @@ class TestHTTPClientRetry:
         assert "status_code=%s" in success_format  # Format string placeholder
         assert 2 in success_args  # attempt number
         assert 4 in success_args  # total attempts
-        assert "POST /services/data/v64.0/composite" in success_args
+        assert "POST /services/data/v65.0/composite" in success_args
         assert 200 in success_args  # status code
 
     @patch("sfq.http_client.HTTPClient._send_authenticated_request_internal")
@@ -436,7 +436,7 @@ class TestHTTPClientRetry:
         ]
 
         status, data = http_client.send_authenticated_request_with_retry(
-            "GET", "/services/data/v64.0/query", max_retries=2
+            "GET", "/services/data/v65.0/query", max_retries=2
         )
 
         assert status == 200
@@ -459,7 +459,7 @@ class TestHTTPClientRetry:
         assert "connection" in exception_args  # timeout_type should be 'connection'
         assert 1 in exception_args  # attempt number
         assert 3 in exception_args  # total attempts
-        assert "GET /services/data/v64.0/query" in exception_args
+        assert "GET /services/data/v65.0/query" in exception_args
         assert "OSError" in exception_args  # exception type
 
         # Check successful retry recovery log
@@ -480,7 +480,7 @@ class TestHTTPClientRetry:
 
         with pytest.raises(QueryTimeoutError, match="QUERY_TIMEOUT"):
             http_client.send_authenticated_request_with_retry(
-                "PATCH", "/services/data/v64.0/sobjects/Account/001", max_retries=2
+                "PATCH", "/services/data/v65.0/sobjects/Account/001", max_retries=2
             )
 
         # Verify trace logging for initial request
@@ -489,7 +489,7 @@ class TestHTTPClientRetry:
         
         initial_trace = trace_calls[0]
         assert "Starting request with retry capability" in initial_trace[0][0]
-        assert "PATCH /services/data/v64.0/sobjects/Account/001" in initial_trace[0][1]
+        assert "PATCH /services/data/v65.0/sobjects/Account/001" in initial_trace[0][1]
 
         # Verify debug logging for retry attempts
         debug_calls = [call for call in mock_logger.debug.call_args_list]
@@ -530,7 +530,7 @@ class TestHTTPClientRetry:
         assert "final timeout type: %s" in error_format  # Format string placeholder
         assert "final status_code: %s" in error_format  # Format string placeholder
         assert 3 in error_args  # total attempts
-        assert "PATCH /services/data/v64.0/sobjects/Account/001" in error_args
+        assert "PATCH /services/data/v65.0/sobjects/Account/001" in error_args
         assert "server" in error_args
         assert 400 in error_args
 
@@ -547,7 +547,7 @@ class TestHTTPClientRetry:
 
         with pytest.raises(QueryTimeoutError, match="QUERY_TIMEOUT"):
             http_client.send_authenticated_request_with_retry(
-                "DELETE", "/services/data/v64.0/sobjects/Account/001", max_retries=1
+                "DELETE", "/services/data/v65.0/sobjects/Account/001", max_retries=1
             )
 
         # Verify debug logging for retry attempts
@@ -578,7 +578,7 @@ class TestHTTPClientRetry:
         assert "final timeout type: %s" in error_format  # Format string placeholder
         assert "final exception: %s" in error_format  # Format string placeholder
         assert 2 in error_args  # total attempts
-        assert "DELETE /services/data/v64.0/sobjects/Account/001" in error_args
+        assert "DELETE /services/data/v65.0/sobjects/Account/001" in error_args
         assert "connection" in error_args
         assert "OSError" in error_args
 
@@ -598,7 +598,7 @@ class TestHTTPClientRetry:
         ]
 
         status, data = http_client.send_authenticated_request_with_retry(
-            "GET", "/services/data/v64.0/query", max_retries=3
+            "GET", "/services/data/v65.0/query", max_retries=3
         )
 
         assert status == 200
@@ -650,7 +650,7 @@ class TestHTTPClientRetry:
 
         with pytest.raises(ValueError, match="Invalid parameter"):
             http_client.send_authenticated_request_with_retry(
-                "GET", "/services/data/v64.0/query", max_retries=3
+                "GET", "/services/data/v65.0/query", max_retries=3
             )
 
         # Verify trace logging for initial request
@@ -669,7 +669,7 @@ class TestHTTPClientRetry:
         assert "attempt %d" in non_timeout_format  # Format string placeholder
         assert "not retrying" in non_timeout_format
         assert 1 in non_timeout_args  # attempt number
-        assert "GET /services/data/v64.0/query" in non_timeout_args
+        assert "GET /services/data/v65.0/query" in non_timeout_args
         assert "ValueError" in non_timeout_args  # exception type
 
         # Should not have any error logs (since we're not retrying)
@@ -683,7 +683,7 @@ class TestHTTPClientRetry:
         mock_internal.return_value = (200, '{"records": []}')
 
         status, data = http_client.send_authenticated_request_with_retry(
-            "GET", "/services/data/v64.0/query", max_retries=3
+            "GET", "/services/data/v65.0/query", max_retries=3
         )
 
         assert status == 200
@@ -723,7 +723,7 @@ class TestHTTPClientRetry:
         ]
 
         status, data = http_client.send_authenticated_request_with_retry(
-            "POST", "/services/data/v64.0/composite/batch", 
+            "POST", "/services/data/v65.0/composite/batch", 
             body='{"batchRequests": []}',
             additional_headers={"Custom-Header": "test"},
             max_retries=2
@@ -732,7 +732,7 @@ class TestHTTPClientRetry:
         assert status == 200
 
         # Verify that all log messages contain the request context
-        expected_context = "POST /services/data/v64.0/composite/batch"
+        expected_context = "POST /services/data/v65.0/composite/batch"
 
         # Check trace logs
         trace_calls = [call for call in mock_logger.trace.call_args_list]
@@ -758,7 +758,7 @@ class TestHTTPClientRetry:
 
         with pytest.raises(QueryTimeoutError, match="QUERY_TIMEOUT"):
             http_client.send_authenticated_request_with_retry(
-                "GET", "/services/data/v64.0/query", max_retries=3
+                "GET", "/services/data/v65.0/query", max_retries=3
             )
 
         # Verify debug logging shows correct attempt numbers
@@ -786,7 +786,7 @@ class TestHTTPClientRetryIntegration:
         """Create a mock AuthManager for testing."""
         auth_manager = Mock(spec=AuthManager)
         auth_manager.instance_url = "https://test.my.salesforce.com"
-        auth_manager.api_version = "v64.0"
+        auth_manager.api_version = "v65.0"
         auth_manager.access_token = "test_token_123"
         auth_manager.get_proxy_config.return_value = None
         auth_manager.get_instance_netloc.return_value = "test.my.salesforce.com"
@@ -815,7 +815,7 @@ class TestHTTPClientRetryIntegration:
         ]
 
         status, data = http_client.send_authenticated_request(
-            "GET", "/services/data/v64.0/query?q=SELECT+Id+FROM+Account"
+            "GET", "/services/data/v65.0/query?q=SELECT+Id+FROM+Account"
         )
 
         assert status == 200
@@ -850,7 +850,7 @@ class TestHTTPClientRetryIntegration:
         ]
 
         status, data = http_client.send_authenticated_request(
-            "POST", "/services/data/v64.0/composite/batch"
+            "POST", "/services/data/v65.0/composite/batch"
         )
 
         assert status == 200
@@ -900,7 +900,7 @@ class TestHTTPClientRetryIntegration:
         # Time a successful request
         start_time = time.perf_counter()
         status, data = http_client.send_authenticated_request(
-            "GET", "/services/data/v64.0/query"
+            "GET", "/services/data/v65.0/query"
         )
         end_time = time.perf_counter()
 
@@ -970,7 +970,7 @@ class TestHTTPClientRetryIntegration:
         with pytest.raises(QueryTimeoutError, match="QUERY_TIMEOUT"):
             # Don't specify max_retries, should use default of 3
             http_client.send_authenticated_request(
-                "GET", "/services/data/v64.0/query"
+                "GET", "/services/data/v65.0/query"
             )
 
         # Should try initial + 3 retries = 4 total attempts (default behavior)
