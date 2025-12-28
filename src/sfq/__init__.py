@@ -56,7 +56,7 @@ __all__ = [
     "unpack_mdapi_zip",
 ]
 
-__version__ = "0.0.46"
+__version__ = "0.0.47"
 """
 ### `__version__`
 
@@ -74,7 +74,7 @@ class _SFTokenAuth:
         access_token: str,
         api_version: str = "v65.0",
         token_endpoint: str = "/services/oauth2/token",
-        user_agent: str = "sfq/0.0.46",
+        user_agent: str = "sfq/0.0.47",
         sforce_client: str = "_auto",
         proxy: str = "_auto",
     ) -> None:
@@ -118,7 +118,7 @@ class SFAuth:
         access_token: Optional[str] = None,
         token_expiration_time: Optional[float] = None,
         token_lifetime: int = 15 * 60,
-        user_agent: str = "sfq/0.0.46",
+        user_agent: str = "sfq/0.0.47",
         sforce_client: str = "_auto",
         proxy: str = "_auto",
     ) -> None:
@@ -189,7 +189,7 @@ class SFAuth:
         )
 
         # Store version information
-        self.__version__ = "0.0.46"
+        self.__version__ = "0.0.47"
         """
         ### `__version__`
         
