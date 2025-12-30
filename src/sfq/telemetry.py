@@ -105,12 +105,33 @@ def _build_payload(event_type: str, ctx: Dict[str, Any], level: int) -> Dict[str
         allowed = {
             "method": ctx.get("method"),
         }
-        # Add only basic non-identifying environment info
+        # Do not include any request path in Standard telemetry to avoid
+        # sending potentially identifying information.
+
+        # Include status and duration if present (use conservative key names)
         try:
+            status = ctx.get("status") or ctx.get("status_code")
+            if status is not None:
+                allowed["status_code"] = status
+            duration = ctx.get("duration_ms")
+            if duration is not None:
+                allowed["duration_ms"] = duration
+        except Exception:
+            pass
+
+        # Add only basic non-identifying environment info (including sforce_client)
+        try:
+            sforce_client = None
+            if isinstance(ctx.get("request_headers"), dict):
+                sforce_client = _extract_sforce_client(
+                    ctx.get("request_headers").get("Sforce-Call-Options")
+                )
+
             allowed["environment"] = {
                 "os": platform.system(),
                 "os_release": platform.release(),
                 "python_version": platform.python_version(),
+                "sforce_client": sforce_client,
             }
         except Exception:
             # never fail telemetry building for environment inspection

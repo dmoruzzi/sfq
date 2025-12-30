@@ -30,9 +30,10 @@ def test_standard_payload_contains_no_pii():
 
         assert "payload" in payload
         p = payload["payload"]
-        # Standard payload only contains method, path, status_code, duration_ms
+        # Standard payload only contains method, status_code, duration_ms
         assert p.get("method") == "GET"
-        assert p.get("path") == "/services/data/v50.0/sobjects/Account"
+        # Standard telemetry must not include the request path
+        assert "path" not in p
         assert p.get("status_code") == 200
         assert p.get("duration_ms") == 123
         # Headers must not appear in Standard payload
