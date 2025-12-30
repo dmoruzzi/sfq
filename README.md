@@ -236,7 +236,7 @@ To use the `sfq` library, you'll need a **client ID** and **refresh token**. The
 Here are examples of telemetry log entries at different levels:
 
 **Standard Telemetry Event:**
-This includes detailed request/response data and diagnostics. This is intended for opt-in use only. 
+This includes anonymized, non-PII fields (method, status code, duration). Intended for general opt-in use.
 
 ```json
 {
@@ -248,10 +248,13 @@ This includes detailed request/response data and diagnostics. This is intended f
     "telemetry_level": 1,
     "payload": {
         "method": "GET",
+        "status_code": 200,
+        "duration_ms": 123,
         "environment": {
             "os": "Windows",
             "os_release": "10",
-            "python_version": "3.11.14"
+            "python_version": "3.11.14",
+            "sforce_client": "sfq/0.0.47"
         }
     }
 }
