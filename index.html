@@ -27,6 +27,7 @@
     <li><a href="#installation">Installation</a></li>
     <li><a href="#usage">Usage</a></li>
     <li><a href="#important-considerations">Important Considerations</a></li>
+    <li><a href="#telemetry">Telemetry</a></li>
   </ul></li>
 </ul>
 
@@ -463,6 +464,156 @@ The <code>sfdxAuthUrl</code> is structured as:</p>
 <li><strong>Efficient Data Retrieval</strong>: The <code>query</code> and <code>cquery</code> function automatically handles pagination, simplifying record retrieval across large datasets. It's recommended to use the <code>LIMIT</code> clause in queries to control the volume of data returned.</li>
 <li><strong>Advanced Tooling Queries</strong>: Utilize the <code>tooling_query</code> function to access the Salesforce Tooling API. This option is designed for performing complex operations, enhancing your data management capabilities.</li>
 </ul>
+
+<h2 id="telemetry">Telemetry</h2>
+
+<p><code><a href="">sfq</a></code> includes an <strong>HTTP event telemetry system</strong> to gather usage insights. Telemetry is <strong>enabled by default</strong> to help improve the library, but you can disable it if you prefer.</p>
+
+<h3 id="configuration">Configuration</h3>
+
+<table>
+<thead>
+<tr>
+  <th>Variable</th>
+  <th>Description</th>
+  <th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td><code>SFQ_TELEMETRY</code></td>
+  <td><code>0</code> (disabled), <code>1</code> (Standard), <code>2</code> (Debug - diagnostics, logs)</td>
+  <td><code>1</code> (Standard)</td>
+</tr>
+<tr>
+  <td><code>SFQ_TELEMETRY_ENDPOINT</code></td>
+  <td>URL to POST telemetry events</td>
+  <td><code>https://telemetry.example.com/v1/events</code></td>
+</tr>
+<tr>
+  <td><code>SFQ_TELEMETRY_SAMPLING</code></td>
+  <td>Fraction of events to send (<code>0.0</code>–<code>1.0</code>)</td>
+  <td><code>1.0</code></td>
+</tr>
+<tr>
+  <td><code>SFQ_TELEMETRY_KEY</code></td>
+  <td>Optional bearer token for the telemetry endpoint</td>
+  <td>None</td>
+</tr>
+</tbody>
+</table>
+
+<h3 id="telemetry-levels">Telemetry Levels</h3>
+
+<ul>
+<li><p><strong>Disabled (<code>0</code>)</strong>:
+No telemetry events are sent.</p></li>
+<li><p><strong>Standard (<code>1</code>)</strong> <em>(default)</em>:
+Sends <strong>anonymized, non-PII events</strong> such as method names, paths, status codes, and execution duration. Safe for general usage.</p></li>
+<li><p><strong>Debug (<code>2</code>)</strong>:
+Sends <strong>additional diagnostic information</strong> and forwards log records from the library (everything). May include sensitive data (tokens, IDs, PII, stack traces). <strong>Do not enable Debug telemetry against public endpoints.</strong></p></li>
+</ul>
+
+<h3 id="privacy-security">Privacy &amp; Security</h3>
+
+<ul>
+<li><strong>Opt-out</strong>: You can disable telemetry by setting <code>SFQ_TELEMETRY=0</code>.</li>
+<li><strong>Standard events</strong> do <strong>not</strong> include request bodies, tokens, or user/org identifiers.</li>
+<li><strong>Debug diagnostics</strong> are intended for internal use <strong>only</strong>. Route them to a trusted internal endpoint.</li>
+<li>Review retention and access controls on any telemetry receiver.</li>
+</ul>
+
+<h3 id="log-samples">Log Samples</h3>
+
+<p>Here are examples of telemetry log entries at different levels:</p>
+
+<p><strong>Standard Telemetry Event:</strong>
+This includes anonymized, non-PII fields (method, status code, duration). Intended for general opt-in use.</p>
+
+<div class="pdoc-code codehilite">
+<pre><span></span><code><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;timestamp&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2025-12-29T03:48:06Z&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;sdk&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sfq&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;sdk_version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;0.0.47&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;event_type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;http.request&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;client_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;c302d04df42738b23dbfe59688fac06367b768e180d9dfb4794a99cab41dad78&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;telemetry_level&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;payload&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">&quot;method&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;GET&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;status_code&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">200</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;duration_ms&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">123</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;environment&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="nt">&quot;os&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Windows&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;os_release&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;10&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;python_version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;3.11.14&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;sforce_client&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sfq/0.0.48&quot;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<p><strong>Debug Telemetry Event:</strong>
+This includes detailed request/response data and diagnostics. This is intended for opt-in use only. </p>
+
+<div class="pdoc-code codehilite">
+<pre><span></span><code><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;timestamp&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2025-12-29T03:49:05Z&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;sdk&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sfq&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;sdk_version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;0.0.47&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;event_type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;http.request&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;client_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;bbfd58c99e967895285d5ec5f5a9af8e2b5a040dc0bf261d64ae663e059c32f0&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;telemetry_level&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;payload&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">&quot;method&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;GET&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;status&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">200</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;duration_ms&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">242</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;request_headers&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="nt">&quot;User-Agent&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sfq/0.0.48&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;Sforce-Call-Options&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;client=sfq/0.0.48&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;Accept&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;application/json&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;Content-Type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;application/json&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;Authorization&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;REDACTED&quot;</span>
+<span class="w">        </span><span class="p">},</span>
+<span class="w">        </span><span class="nt">&quot;environment&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="nt">&quot;os&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Windows&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;os_release&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;10&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;python_version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;3.11.14&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;user_agent&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sfq/0.0.48&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;sforce_client&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sfq/0.0.48&quot;</span>
+<span class="w">        </span><span class="p">},</span>
+<span class="w">        </span><span class="nt">&quot;path_hash&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;119a7bffe38631d987935f5f88effb89fe9267993fa4b459f712a993ef5859f0&quot;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<p>The following fields appear in telemetry events; below are concise explanations to help you interpret them:</p>
+
+<ul>
+<li><code>timestamp</code>: ISO 8601 timestamp (UTC) when the event was generated.</li>
+<li><code>sdk</code>: The SDK name that generated the event (this library: <code><a href="">sfq</a></code>).</li>
+<li><code>sdk_version</code>: Version of the SDK (semantic version string).</li>
+<li><code>sfk_version</code>: Alias for <code>sdk_version</code> (included for compatibility with some consumers).</li>
+<li><code>event_type</code>: Logical event category (e.g., <code>http.request</code>, <code>log.record</code>).</li>
+<li><code>client_id</code>: Anonymous identifier generated <strong>at runtime</strong> for the current client instance (SHA-256 of a UUID). This ID is <strong>not persisted</strong> across runs and <strong>cannot be traced</strong> to any user or organization data. Its purpose is to provide a temporary, unique identifier for telemetry events.</li>
+<li><p><code>telemetry_level</code>: Telemetry level active for the client (0=disabled, 1=Standard, 2=Debug).</p></li>
+<li><p><code>payload.method</code>: HTTP method used (e.g., <code>GET</code>, <code>POST</code>, <code>PUT</code>, <code>DELETE</code>).</p></li>
+<li><code>payload.status</code> / <code>payload.status_code</code>: HTTP response status code (when available).</li>
+<li><code>payload.duration_ms</code>: Duration of the operation in milliseconds (when available).</li>
+<li><p><code>payload.environment</code>: Small environment summary containing:</p>
+
+<ul>
+<li><code>os</code>: OS name (e.g., <code>Windows</code>, <code>Linux</code>).</li>
+<li><code>os_release</code>: OS release string (e.g., <code>10</code>).</li>
+<li><code>python_version</code>: Python runtime version (e.g., <code>3.11.14</code>).</li>
+<li><code>user_agent</code>: (Debug telemetry only) User-Agent header value when available.</li>
+<li><code>sforce_client</code>: (Debug telemetry only) extracted <code>client=</code> value from <code>Sforce-Call-Options</code> header when available.</li>
+</ul></li>
+<li><p><code>payload.path_hash</code> (Debug telemetry only): SHA-256 hash of the sanitized path string. The raw request path/URL is never included in Standard telemetry (level 1); Debug telemetry (level 2) includes only this hash to allow grouping without sending identifying path components.</p></li>
+</ul>
+
+<p>If you need more detail for debugging, enable Debug telemetry (<code>SFQ_TELEMETRY=2</code>) and route events to a trusted internal endpoint via <code>SFQ_TELEMETRY_ENDPOINT</code>. To disable telemetry entirely, set <code>SFQ_TELEMETRY=0</code>.</p>
 </div>
 
                         <input id="mod-sfq-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
@@ -527,7 +678,7 @@ The <code>sfdxAuthUrl</code> is structured as:</p>
 </span><span id="L-56"><a href="#L-56"><span class="linenos"> 56</span></a>    <span class="s2">&quot;unpack_mdapi_zip&quot;</span><span class="p">,</span>
 </span><span id="L-57"><a href="#L-57"><span class="linenos"> 57</span></a><span class="p">]</span>
 </span><span id="L-58"><a href="#L-58"><span class="linenos"> 58</span></a>
-</span><span id="L-59"><a href="#L-59"><span class="linenos"> 59</span></a><span class="n">__version__</span> <span class="o">=</span> <span class="s2">&quot;0.0.47&quot;</span>
+</span><span id="L-59"><a href="#L-59"><span class="linenos"> 59</span></a><span class="n">__version__</span> <span class="o">=</span> <span class="s2">&quot;0.0.48&quot;</span>
 </span><span id="L-60"><a href="#L-60"><span class="linenos"> 60</span></a><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="L-61"><a href="#L-61"><span class="linenos"> 61</span></a><span class="sd">### `__version__`</span>
 </span><span id="L-62"><a href="#L-62"><span class="linenos"> 62</span></a>
@@ -545,7 +696,7 @@ The <code>sfdxAuthUrl</code> is structured as:</p>
 </span><span id="L-74"><a href="#L-74"><span class="linenos"> 74</span></a>        <span class="n">access_token</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
 </span><span id="L-75"><a href="#L-75"><span class="linenos"> 75</span></a>        <span class="n">api_version</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;v65.0&quot;</span><span class="p">,</span>
 </span><span id="L-76"><a href="#L-76"><span class="linenos"> 76</span></a>        <span class="n">token_endpoint</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;/services/oauth2/token&quot;</span><span class="p">,</span>
-</span><span id="L-77"><a href="#L-77"><span class="linenos"> 77</span></a>        <span class="n">user_agent</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;sfq/0.0.47&quot;</span><span class="p">,</span>
+</span><span id="L-77"><a href="#L-77"><span class="linenos"> 77</span></a>        <span class="n">user_agent</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;sfq/0.0.48&quot;</span><span class="p">,</span>
 </span><span id="L-78"><a href="#L-78"><span class="linenos"> 78</span></a>        <span class="n">sforce_client</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;_auto&quot;</span><span class="p">,</span>
 </span><span id="L-79"><a href="#L-79"><span class="linenos"> 79</span></a>        <span class="n">proxy</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;_auto&quot;</span><span class="p">,</span>
 </span><span id="L-80"><a href="#L-80"><span class="linenos"> 80</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
@@ -589,7 +740,7 @@ The <code>sfdxAuthUrl</code> is structured as:</p>
 </span><span id="L-118"><a href="#L-118"><span class="linenos">118</span></a>        <span class="n">access_token</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="L-119"><a href="#L-119"><span class="linenos">119</span></a>        <span class="n">token_expiration_time</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="L-120"><a href="#L-120"><span class="linenos">120</span></a>        <span class="n">token_lifetime</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">15</span> <span class="o">*</span> <span class="mi">60</span><span class="p">,</span>
-</span><span id="L-121"><a href="#L-121"><span class="linenos">121</span></a>        <span class="n">user_agent</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;sfq/0.0.47&quot;</span><span class="p">,</span>
+</span><span id="L-121"><a href="#L-121"><span class="linenos">121</span></a>        <span class="n">user_agent</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;sfq/0.0.48&quot;</span><span class="p">,</span>
 </span><span id="L-122"><a href="#L-122"><span class="linenos">122</span></a>        <span class="n">sforce_client</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;_auto&quot;</span><span class="p">,</span>
 </span><span id="L-123"><a href="#L-123"><span class="linenos">123</span></a>        <span class="n">proxy</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;_auto&quot;</span><span class="p">,</span>
 </span><span id="L-124"><a href="#L-124"><span class="linenos">124</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
@@ -660,7 +811,7 @@ The <code>sfdxAuthUrl</code> is structured as:</p>
 </span><span id="L-189"><a href="#L-189"><span class="linenos">189</span></a>        <span class="p">)</span>
 </span><span id="L-190"><a href="#L-190"><span class="linenos">190</span></a>
 </span><span id="L-191"><a href="#L-191"><span class="linenos">191</span></a>        <span class="c1"># Store version information</span>
-</span><span id="L-192"><a href="#L-192"><span class="linenos">192</span></a>        <span class="bp">self</span><span class="o">.</span><span class="n">__version__</span> <span class="o">=</span> <span class="s2">&quot;0.0.47&quot;</span>
+</span><span id="L-192"><a href="#L-192"><span class="linenos">192</span></a>        <span class="bp">self</span><span class="o">.</span><span class="n">__version__</span> <span class="o">=</span> <span class="s2">&quot;0.0.48&quot;</span>
 </span><span id="L-193"><a href="#L-193"><span class="linenos">193</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="L-194"><a href="#L-194"><span class="linenos">194</span></a><span class="sd">        ### `__version__`</span>
 </span><span id="L-195"><a href="#L-195"><span class="linenos">195</span></a><span class="sd">        </span>
@@ -1250,7 +1401,7 @@ The <code>sfdxAuthUrl</code> is structured as:</p>
 </span><span id="SFAuth-119"><a href="#SFAuth-119"><span class="linenos">119</span></a>        <span class="n">access_token</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="SFAuth-120"><a href="#SFAuth-120"><span class="linenos">120</span></a>        <span class="n">token_expiration_time</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="SFAuth-121"><a href="#SFAuth-121"><span class="linenos">121</span></a>        <span class="n">token_lifetime</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">15</span> <span class="o">*</span> <span class="mi">60</span><span class="p">,</span>
-</span><span id="SFAuth-122"><a href="#SFAuth-122"><span class="linenos">122</span></a>        <span class="n">user_agent</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;sfq/0.0.47&quot;</span><span class="p">,</span>
+</span><span id="SFAuth-122"><a href="#SFAuth-122"><span class="linenos">122</span></a>        <span class="n">user_agent</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;sfq/0.0.48&quot;</span><span class="p">,</span>
 </span><span id="SFAuth-123"><a href="#SFAuth-123"><span class="linenos">123</span></a>        <span class="n">sforce_client</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;_auto&quot;</span><span class="p">,</span>
 </span><span id="SFAuth-124"><a href="#SFAuth-124"><span class="linenos">124</span></a>        <span class="n">proxy</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;_auto&quot;</span><span class="p">,</span>
 </span><span id="SFAuth-125"><a href="#SFAuth-125"><span class="linenos">125</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
@@ -1321,7 +1472,7 @@ The <code>sfdxAuthUrl</code> is structured as:</p>
 </span><span id="SFAuth-190"><a href="#SFAuth-190"><span class="linenos">190</span></a>        <span class="p">)</span>
 </span><span id="SFAuth-191"><a href="#SFAuth-191"><span class="linenos">191</span></a>
 </span><span id="SFAuth-192"><a href="#SFAuth-192"><span class="linenos">192</span></a>        <span class="c1"># Store version information</span>
-</span><span id="SFAuth-193"><a href="#SFAuth-193"><span class="linenos">193</span></a>        <span class="bp">self</span><span class="o">.</span><span class="n">__version__</span> <span class="o">=</span> <span class="s2">&quot;0.0.47&quot;</span>
+</span><span id="SFAuth-193"><a href="#SFAuth-193"><span class="linenos">193</span></a>        <span class="bp">self</span><span class="o">.</span><span class="n">__version__</span> <span class="o">=</span> <span class="s2">&quot;0.0.48&quot;</span>
 </span><span id="SFAuth-194"><a href="#SFAuth-194"><span class="linenos">194</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="SFAuth-195"><a href="#SFAuth-195"><span class="linenos">195</span></a><span class="sd">        ### `__version__`</span>
 </span><span id="SFAuth-196"><a href="#SFAuth-196"><span class="linenos">196</span></a><span class="sd">        </span>
@@ -1893,7 +2044,7 @@ The <code>sfdxAuthUrl</code> is structured as:</p>
                                         <input id="SFAuth.__init__-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
 <div class="attr function">
             
-        <span class="name">SFAuth</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">instance_url</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">client_id</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">client_secret</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">refresh_token</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">api_version</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;v65.0&#39;</span>,</span><span class="param">	<span class="n">token_endpoint</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;/services/oauth2/token&#39;</span>,</span><span class="param">	<span class="n">access_token</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">token_expiration_time</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">token_lifetime</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">900</span>,</span><span class="param">	<span class="n">user_agent</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;sfq/0.0.47&#39;</span>,</span><span class="param">	<span class="n">sforce_client</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;_auto&#39;</span>,</span><span class="param">	<span class="n">proxy</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;_auto&#39;</span></span>)</span>
+        <span class="name">SFAuth</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">instance_url</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">client_id</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">client_secret</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">refresh_token</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">api_version</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;v65.0&#39;</span>,</span><span class="param">	<span class="n">token_endpoint</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;/services/oauth2/token&#39;</span>,</span><span class="param">	<span class="n">access_token</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">token_expiration_time</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">token_lifetime</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">900</span>,</span><span class="param">	<span class="n">user_agent</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;sfq/0.0.48&#39;</span>,</span><span class="param">	<span class="n">sforce_client</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;_auto&#39;</span>,</span><span class="param">	<span class="n">proxy</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;_auto&#39;</span></span>)</span>
 
                 <label class="view-source-button" for="SFAuth.__init__-view-source"><span>View Source</span></label>
 
@@ -1910,7 +2061,7 @@ The <code>sfdxAuthUrl</code> is structured as:</p>
 </span><span id="SFAuth.__init__-119"><a href="#SFAuth.__init__-119"><span class="linenos">119</span></a>        <span class="n">access_token</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="SFAuth.__init__-120"><a href="#SFAuth.__init__-120"><span class="linenos">120</span></a>        <span class="n">token_expiration_time</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="SFAuth.__init__-121"><a href="#SFAuth.__init__-121"><span class="linenos">121</span></a>        <span class="n">token_lifetime</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">15</span> <span class="o">*</span> <span class="mi">60</span><span class="p">,</span>
-</span><span id="SFAuth.__init__-122"><a href="#SFAuth.__init__-122"><span class="linenos">122</span></a>        <span class="n">user_agent</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;sfq/0.0.47&quot;</span><span class="p">,</span>
+</span><span id="SFAuth.__init__-122"><a href="#SFAuth.__init__-122"><span class="linenos">122</span></a>        <span class="n">user_agent</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;sfq/0.0.48&quot;</span><span class="p">,</span>
 </span><span id="SFAuth.__init__-123"><a href="#SFAuth.__init__-123"><span class="linenos">123</span></a>        <span class="n">sforce_client</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;_auto&quot;</span><span class="p">,</span>
 </span><span id="SFAuth.__init__-124"><a href="#SFAuth.__init__-124"><span class="linenos">124</span></a>        <span class="n">proxy</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;_auto&quot;</span><span class="p">,</span>
 </span><span id="SFAuth.__init__-125"><a href="#SFAuth.__init__-125"><span class="linenos">125</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
@@ -1981,7 +2132,7 @@ The <code>sfdxAuthUrl</code> is structured as:</p>
 </span><span id="SFAuth.__init__-190"><a href="#SFAuth.__init__-190"><span class="linenos">190</span></a>        <span class="p">)</span>
 </span><span id="SFAuth.__init__-191"><a href="#SFAuth.__init__-191"><span class="linenos">191</span></a>
 </span><span id="SFAuth.__init__-192"><a href="#SFAuth.__init__-192"><span class="linenos">192</span></a>        <span class="c1"># Store version information</span>
-</span><span id="SFAuth.__init__-193"><a href="#SFAuth.__init__-193"><span class="linenos">193</span></a>        <span class="bp">self</span><span class="o">.</span><span class="n">__version__</span> <span class="o">=</span> <span class="s2">&quot;0.0.47&quot;</span>
+</span><span id="SFAuth.__init__-193"><a href="#SFAuth.__init__-193"><span class="linenos">193</span></a>        <span class="bp">self</span><span class="o">.</span><span class="n">__version__</span> <span class="o">=</span> <span class="s2">&quot;0.0.48&quot;</span>
 </span><span id="SFAuth.__init__-194"><a href="#SFAuth.__init__-194"><span class="linenos">194</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="SFAuth.__init__-195"><a href="#SFAuth.__init__-195"><span class="linenos">195</span></a><span class="sd">        ### `__version__`</span>
 </span><span id="SFAuth.__init__-196"><a href="#SFAuth.__init__-196"><span class="linenos">196</span></a><span class="sd">        </span>
@@ -3543,7 +3694,7 @@ that is wired to this SFAuth instance.</p>
                 <section id="__version__">
                     <div class="attr variable">
             <span class="name">__version__</span>        =
-<span class="default_value">&#39;0.0.47&#39;</span>
+<span class="default_value">&#39;0.0.48&#39;</span>
 
         
     </div>
