@@ -15,6 +15,7 @@ from .auth import AuthManager
 from .exceptions import ConfigurationError, QueryTimeoutError
 from .timeout_detector import TimeoutDetector
 from .utils import format_headers_for_logging, get_logger, log_api_usage
+from . import telemetry
 
 logger = get_logger(__name__)
 
@@ -162,6 +163,7 @@ class HTTPClient:
         for attempt in range(1, max_attempts + 1):
             conn = None
             try:
+                attempt_start = time.time()
                 # Get the instance netloc for connection
                 netloc = self.auth_manager.get_instance_netloc()
                 conn = self.create_connection(netloc)
@@ -184,6 +186,20 @@ class HTTPClient:
                 # Log response details
                 logger.trace("Response status: %s", response.status)
                 logger.trace("Response body: %s", data)
+
+                # Emit telemetry (best-effort, non-blocking)
+                try:
+                    duration_ms = int((time.time() - attempt_start) * 1000)
+                    ctx = {
+                        "method": method,
+                        "endpoint": endpoint,
+                        "status": response.status,
+                        "duration_ms": duration_ms,
+                        "request_headers": headers,
+                    }
+                    telemetry.emit("http.request", ctx)
+                except Exception:
+                    pass
 
                 return response.status, data
 
@@ -210,6 +226,23 @@ class HTTPClient:
                     continue
 
                 # Non-timeout error or max attempts reached -> log and fail
+                # Emit telemetry for failed attempt
+                try:
+                    duration_ms = 0
+                    if 'attempt_start' in locals():
+                        duration_ms = int((time.time() - attempt_start) * 1000)
+                    ctx = {
+                        "method": method,
+                        "endpoint": endpoint,
+                        "status": None,
+                        "duration_ms": duration_ms,
+                        "error": str(err),
+                        "request_headers": headers,
+                    }
+                    telemetry.emit("http.request", ctx)
+                except Exception:
+                    pass
+
                 logger.exception("HTTP request failed (attempt %d/%d): %s", attempt, max_attempts, err)
                 return None, None
 
