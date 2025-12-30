@@ -198,3 +198,119 @@ To use the `sfq` library, you'll need a **client ID** and **refresh token**. The
 - **Security**: Safeguard your client_id, client_secret, and refresh_token diligently, as they provide access to your Salesforce environment. Avoid sharing or exposing them in unsecured locations.
 - **Efficient Data Retrieval**: The `query` and `cquery` function automatically handles pagination, simplifying record retrieval across large datasets. It's recommended to use the `LIMIT` clause in queries to control the volume of data returned.
 - **Advanced Tooling Queries**: Utilize the `tooling_query` function to access the Salesforce Tooling API. This option is designed for performing complex operations, enhancing your data management capabilities.
+
+## Telemetry
+
+`sfq` includes an **HTTP event telemetry system** to gather usage insights. Telemetry is **enabled by default** to help improve the library, but you can disable it if you prefer.
+
+### Configuration
+
+| Variable                 | Description                                                    | Default                                   |
+| ------------------------ | -------------------------------------------------------------- | ----------------------------------------- |
+| `SFQ_TELEMETRY`          | `0` (disabled), `1` (Standard), `2` (Debug - diagnostics, logs) | `1` (Standard)                            |
+| `SFQ_TELEMETRY_ENDPOINT` | URL to POST telemetry events                                   | `https://telemetry.example.com/v1/events` |
+| `SFQ_TELEMETRY_SAMPLING` | Fraction of events to send (`0.0`–`1.0`)                       | `1.0`                                     |
+| `SFQ_TELEMETRY_KEY`      | Optional bearer token for the telemetry endpoint               | None                                      |
+
+### Telemetry Levels
+
+* **Disabled (`0`)**:
+  No telemetry events are sent.
+
+* **Standard (`1`)** *(default)*:
+  Sends **anonymized, non-PII events** such as method names, paths, status codes, and execution duration. Safe for general usage.
+
+* **Debug (`2`)**:
+  Sends **additional diagnostic information** and forwards log records from the library (everything). May include sensitive data (tokens, IDs, PII, stack traces). **Do not enable Debug telemetry against public endpoints.**
+
+### Privacy & Security
+
+* **Opt-out**: You can disable telemetry by setting `SFQ_TELEMETRY=0`.
+* **Standard events** do **not** include request bodies, tokens, or user/org identifiers.
+* **Debug diagnostics** are intended for internal use **only**. Route them to a trusted internal endpoint.
+* Review retention and access controls on any telemetry receiver.
+
+
+### Log Samples
+
+Here are examples of telemetry log entries at different levels:
+
+**Standard Telemetry Event:**
+This includes detailed request/response data and diagnostics. This is intended for opt-in use only. 
+
+```json
+{
+    "timestamp": "2025-12-29T03:48:06Z",
+    "sdk": "sfq",
+    "sdk_version": "0.0.47",
+    "event_type": "http.request",
+    "client_id": "c302d04df42738b23dbfe59688fac06367b768e180d9dfb4794a99cab41dad78",
+    "telemetry_level": 1,
+    "payload": {
+        "method": "GET",
+        "environment": {
+            "os": "Windows",
+            "os_release": "10",
+            "python_version": "3.11.14"
+        }
+    }
+}
+```
+
+**Debug Telemetry Event:**
+This includes detailed request/response data and diagnostics. This is intended for opt-in use only. 
+
+```json
+{
+    "timestamp": "2025-12-29T03:49:05Z",
+    "sdk": "sfq",
+    "sdk_version": "0.0.47",
+    "event_type": "http.request",
+    "client_id": "bbfd58c99e967895285d5ec5f5a9af8e2b5a040dc0bf261d64ae663e059c32f0",
+    "telemetry_level": 2,
+    "payload": {
+        "method": "GET",
+        "status": 200,
+        "duration_ms": 242,
+        "request_headers": {
+            "User-Agent": "sfq/0.0.47",
+            "Sforce-Call-Options": "client=sfq/0.0.47",
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "Authorization": "REDACTED"
+        },
+        "environment": {
+            "os": "Windows",
+            "os_release": "10",
+            "python_version": "3.11.14",
+            "user_agent": "sfq/0.0.47",
+            "sforce_client": "sfq/0.0.47"
+        },
+        "path_hash": "119a7bffe38631d987935f5f88effb89fe9267993fa4b459f712a993ef5859f0"
+    }
+}
+```
+
+The following fields appear in telemetry events; below are concise explanations to help you interpret them:
+
+- `timestamp`: ISO 8601 timestamp (UTC) when the event was generated.
+- `sdk`: The SDK name that generated the event (this library: `sfq`).
+- `sdk_version`: Version of the SDK (semantic version string).
+- `sfk_version`: Alias for `sdk_version` (included for compatibility with some consumers).
+- `event_type`: Logical event category (e.g., `http.request`, `log.record`).
+- `client_id`: Anonymous identifier generated **at runtime** for the current client instance (SHA-256 of a UUID). This ID is **not persisted** across runs and **cannot be traced** to any user or organization data. Its purpose is to provide a temporary, unique identifier for telemetry events.
+- `telemetry_level`: Telemetry level active for the client (0=disabled, 1=Standard, 2=Debug).
+
+- `payload.method`: HTTP method used (e.g., `GET`, `POST`, `PUT`, `DELETE`).
+- `payload.status` / `payload.status_code`: HTTP response status code (when available).
+- `payload.duration_ms`: Duration of the operation in milliseconds (when available).
+- `payload.environment`: Small environment summary containing:
+    - `os`: OS name (e.g., `Windows`, `Linux`).
+    - `os_release`: OS release string (e.g., `10`).
+    - `python_version`: Python runtime version (e.g., `3.11.14`).
+    - `user_agent`: (Debug telemetry only) User-Agent header value when available.
+    - `sforce_client`: (Debug telemetry only) extracted `client=` value from `Sforce-Call-Options` header when available.
+
+- `payload.path_hash` (Debug telemetry only): SHA-256 hash of the sanitized path string. The raw request path/URL is never included in Standard telemetry (level 1); Debug telemetry (level 2) includes only this hash to allow grouping without sending identifying path components.
+
+If you need more detail for debugging, enable Debug telemetry (`SFQ_TELEMETRY=2`) and route events to a trusted internal endpoint via `SFQ_TELEMETRY_ENDPOINT`. To disable telemetry entirely, set `SFQ_TELEMETRY=0`.
