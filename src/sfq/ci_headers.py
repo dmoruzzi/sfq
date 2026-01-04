@@ -136,7 +136,7 @@ class CIHeaders:
         """
         # Check if CI headers are globally disabled
         attach_ci_env = os.environ.get("SFQ_ATTACH_CI", "true").lower()
-        if attach_ci_env not in ("true", "1", "yes", "y"):
+        if attach_ci_env not in ("true", "1", "yes", "y", ""):
             return {}
 
         provider = CIHeaders.detect_ci_provider()
