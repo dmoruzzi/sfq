@@ -72,7 +72,8 @@ class CIHeaders:
         Detection is presence-based to support partial / reusable CI contexts.
         """
         for provider, config in CIHeaders.CI_PROVIDERS.items():
-            if os.environ.get(config["detect_var"]):
+            detect_value = os.environ.get(config["detect_var"])
+            if detect_value and detect_value.lower() in {"true", "1", "yes", "y"}:
                 return provider
         return None
 
@@ -123,16 +124,16 @@ class CIHeaders:
         config = CIHeaders.CI_PROVIDERS[provider]
         headers: Dict[str, str] = {}
 
+        # Always include the CI provider header
+        headers[CIHeaders._get_header_name("ci_provider")] = provider
+
+        # Add non-PII headers
         for env_var, field_name in config["non_pii_vars"].items():
             value = os.environ.get(env_var)
             if value:
                 headers[CIHeaders._get_header_name(field_name)] = value
 
-        if not headers:
-            return {}
-
-        headers[CIHeaders._get_header_name("ci_provider")] = provider
-
+        # Add PII headers if opted in
         if CIHeaders._should_include_pii():
             for env_var, field_name in config.get("pii_vars", {}).items():
                 value = os.environ.get(env_var)
