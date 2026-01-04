@@ -205,12 +205,12 @@ To use the `sfq` library, you'll need a **client ID** and **refresh token**. The
 
 ### Configuration
 
-| Variable                 | Description                                                    | Default                                   |
-| ------------------------ | -------------------------------------------------------------- | ----------------------------------------- |
-| `SFQ_TELEMETRY`          | `0` (disabled), `1` (Standard), `2` (Debug - diagnostics, logs) | `1` (Standard)                            |
-| `SFQ_TELEMETRY_ENDPOINT` | URL to POST telemetry events                                   | `https://telemetry.example.com/v1/events` |
-| `SFQ_TELEMETRY_SAMPLING` | Fraction of events to send (`0.0`–`1.0`)                       | `1.0`                                     |
-| `SFQ_TELEMETRY_KEY`      | Optional bearer token for the telemetry endpoint               | None                                      |
+| Variable                 | Description                                                     | Default                                           |
+|--------------------------|-----------------------------------------------------------------|---------------------------------------------------|
+| `SFQ_TELEMETRY`          | `0` (disabled), `1` (Standard), `2` (Debug - diagnostics, logs) | `1` (Standard)                                    |
+| `SFQ_TELEMETRY_ENDPOINT` | URL to POST telemetry events                                    | `https://sfq-telemetry.moruzzi.org/api/v0/events` |
+| `SFQ_TELEMETRY_SAMPLING` | Fraction of events to send (`0.0`–`1.0`)                        | `1.0`                                             |
+| `SFQ_TELEMETRY_KEY`      | Optional bearer token for the telemetry endpoint                | None                                              |
 
 ### Telemetry Levels
 
@@ -317,3 +317,85 @@ The following fields appear in telemetry events; below are concise explanations 
 - `payload.path_hash` (Debug telemetry only): SHA-256 hash of the sanitized path string. The raw request path/URL is never included in Standard telemetry (level 1); Debug telemetry (level 2) includes only this hash to allow grouping without sending identifying path components.
 
 If you need more detail for debugging, enable Debug telemetry (`SFQ_TELEMETRY=2`) and route events to a trusted internal endpoint via `SFQ_TELEMETRY_ENDPOINT`. To disable telemetry entirely, set `SFQ_TELEMETRY=0`.
+
+## CI-Aware HTTP Header Attachment
+
+`sfq` automatically attaches traceable CI metadata to outbound HTTP requests when running in CI environments. This enables request tracking and correlation across systems through the `AdditionalInfo` fields for ApiEvent and LoginEvent.
+
+### How It Works
+
+When running in a CI environment, `sfq` automatically detects the CI provider and attaches non-PII metadata headers to all HTTP requests. 
+
+### Supported CI Providers
+
+| CI Provider    | Detection Variable | Value  |
+|----------------|--------------------|--------|
+| GitHub Actions | `GITHUB_ACTIONS`   | `true` |
+| GitLab CI      | `GITLAB_CI`        | `true` |
+| CircleCI       | `CIRCLECI`         | `true` |
+
+### Header Format
+
+All CI metadata uses the `x-sfdc-addinfo-` prefix:
+
+```
+x-sfdc-addinfo-ci_provider: github
+x-sfdc-addinfo-run_id: 123456
+x-sfdc-addinfo-repository: org/repo
+x-sfdc-addinfo-workflow: Release
+x-sfdc-addinfo-ref: refs/heads/main
+x-sfdc-addinfo-runner_os: Linux
+```
+
+### Non-PII Metadata
+
+The following metadata is automatically included when available:
+
+**GitHub Actions:**
+- `GITHUB_RUN_ID` → `x-sfdc-addinfo-run_id`
+- `GITHUB_REPOSITORY` → `x-sfdc-addinfo-repository`
+- `GITHUB_WORKFLOW` → `x-sfdc-addinfo-workflow`
+- `GITHUB_REF` → `x-sfdc-addinfo-ref`
+- `RUNNER_OS` → `x-sfdc-addinfo-runner_os`
+
+**GitLab CI:**
+- `CI_PIPELINE_ID` → `x-sfdc-addinfo-pipeline_id`
+- `CI_PROJECT_PATH` → `x-sfdc-addinfo-project_path`
+- `CI_JOB_NAME` → `x-sfdc-addinfo-job_name`
+- `CI_COMMIT_REF_NAME` → `x-sfdc-addinfo-commit_ref_name`
+- `CI_RUNNER_ID` → `x-sfdc-addinfo-runner_id`
+
+**CircleCI:**
+- `CIRCLE_WORKFLOW_ID` → `x-sfdc-addinfo-workflow_id`
+- `CIRCLE_PROJECT_REPONAME` → `x-sfdc-addinfo-project_reponame`
+- `CIRCLE_BRANCH` → `x-sfdc-addinfo-branch`
+- `CIRCLE_BUILD_NUM` → `x-sfdc-addinfo-build_num`
+
+### PII Metadata 
+
+PII headers are not included by default. To include them, set the environment variable:
+
+```bash
+export SFQ_ATTACH_CI_PII=true
+```
+
+**GitHub Actions PII:**
+- `GITHUB_ACTOR` → `x-sfdc-addinfo-pii-actor`
+- `GITHUB_ACTOR_ID` → `x-sfdc-addinfo-pii-actor_id`
+- `GITHUB_TRIGGERING_ACTOR` → `x-sfdc-addinfo-pii-triggering_actor`
+
+**GitLab CI PII:**
+- `GITLAB_USER_LOGIN` → `x-sfdc-addinfo-pii-user_login`
+- `GITLAB_USER_NAME` → `x-sfdc-addinfo-pii-user_name`
+- `GITLAB_USER_EMAIL` → `x-sfdc-addinfo-pii-user_email`
+- `GITLAB_USER_ID` → `x-sfdc-addinfo-pii-user_id`
+
+**CircleCI PII:**
+- `CIRCLE_USERNAME` → `x-sfdc-addinfo-pii-username`
+
+### Configuration
+
+| Variable            | Description                                   | Default |
+|---------------------|-----------------------------------------------|---------|
+| `SFQ_ATTACH_CI_PII` | Include PII headers (`true`, `1`, `yes`, `y`) | `false` |
+| `SFQ_ATTACH_CI`     | Include CI headers (`true`, `1`, `yes`, `y`)  | `true`  |

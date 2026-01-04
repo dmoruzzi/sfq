@@ -12,6 +12,7 @@ import time
 from typing import Dict, Optional, Tuple
 
 from .auth import AuthManager
+from .ci_headers import CIHeaders
 from .exceptions import ConfigurationError, QueryTimeoutError
 from .timeout_detector import TimeoutDetector
 from .utils import format_headers_for_logging, get_logger, log_api_usage
@@ -102,6 +103,12 @@ class HTTPClient:
             "Accept": "application/json",
             "Content-Type": "application/json",
         }
+
+        # Add CI metadata headers if running in CI environment
+        ci_headers = CIHeaders.get_ci_headers()
+        if ci_headers:
+            logger.trace("Adding CI metadata headers: %s", ci_headers)
+            headers.update(ci_headers)
 
         if include_auth and not recursive_call:
             logger.trace("Including auth headers...")
