@@ -8,6 +8,8 @@ of traceable CI metadata to outbound HTTP requests.
 import os
 from typing import Dict, Optional
 
+from .utils import get_logger
+
 
 class CIHeaders:
     """
@@ -148,3 +150,43 @@ class CIHeaders:
         Check if currently running in a CI environment.
         """
         return CIHeaders.detect_ci_provider() is not None
+
+    @staticmethod
+    def get_addinfo_headers() -> Dict[str, str]:
+        """
+        Generate custom addinfo headers from SFQ_HEADERS environment variable.
+
+        The SFQ_HEADERS environment variable should be in the format:
+        "key1:value1|key2:value2"
+
+        This will create headers like:
+        x-sfdc-addinfo-key1 = value1
+        x-sfdc-addinfo-key2 = value2
+
+        Returns:
+            Dict[str, str]: Headers to attach, or empty dict if not applicable.
+        """
+        headers: Dict[str, str] = {}
+        
+        # Get the environment variable
+        sfq_headers_env = os.environ.get("SFQ_HEADERS", "")
+        if not sfq_headers_env:
+            return headers
+        
+        # Parse the key:value pairs separated by |
+        try:
+            header_pairs = sfq_headers_env.split("|")
+            for pair in header_pairs:
+                if ":" in pair:
+                    key, value = pair.split(":", 1)  # Split on first : only
+                    key = key.strip()
+                    value = value.strip()
+                    if key and value:
+                        header_name = f"x-sfdc-addinfo-{key}"
+                        headers[header_name] = value
+        except Exception as e:
+            # If parsing fails, log and return empty headers
+            logger = get_logger(__name__)
+            logger.warning("Failed to parse SFQ_HEADERS environment variable: %s", e)
+        
+        return headers

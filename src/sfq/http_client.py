@@ -110,6 +110,12 @@ class HTTPClient:
             logger.trace("Adding CI metadata headers: %s", ci_headers)
             headers.update(ci_headers)
 
+        # Add custom addinfo headers from SFQ_HEADERS environment variable
+        addinfo_headers = CIHeaders.get_addinfo_headers()
+        if addinfo_headers:
+            logger.trace("Adding custom addinfo headers: %s", addinfo_headers)
+            headers.update(addinfo_headers)
+
         if include_auth and not recursive_call:
             logger.trace("Including auth headers...")
             # Ensure we have a valid token before adding auth headers
