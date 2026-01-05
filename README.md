@@ -399,3 +399,68 @@ export SFQ_ATTACH_CI_PII=true
 |---------------------|-----------------------------------------------|---------|
 | `SFQ_ATTACH_CI_PII` | Include PII headers (`true`, `1`, `yes`, `y`) | `false` |
 | `SFQ_ATTACH_CI`     | Include CI headers (`true`, `1`, `yes`, `y`)  | `true`  |
+
+## Custom Addinfo Headers
+
+`sfq` supports injecting arbitrary custom headers into HTTP requests using the `SFQ_HEADERS` environment variable. This allows you to add custom metadata to all API requests, which appears in the `AdditionalInfo` fields for ApiEvent and LoginEvent.
+
+### How It Works
+
+The `SFQ_HEADERS` environment variable allows you to specify custom key-value pairs that will be converted into `x-sfdc-addinfo-` headers and attached to all HTTP requests.
+
+### Usage
+
+Set the `SFQ_HEADERS` environment variable using the format `key1:value1|key2:value2`:
+
+```bash
+export SFQ_HEADERS="custom_key:custom_value|another_header:another_value"
+```
+
+This will create the following HTTP headers:
+
+```
+x-sfdc-addinfo-custom_key: custom_value
+x-sfdc-addinfo-another_header: another_value
+```
+
+### Example
+
+```python
+import os
+from sfq import SFAuth
+
+# Set custom headers
+os.environ['SFQ_HEADERS'] = "deployment_id:deploy-123|environment:production|team:data-engineering"
+
+# Initialize SFAuth
+sf = SFAuth(
+    instance_url="https://example-dev-ed.trailblaze.my.salesforce.com",
+    client_id="your-client-id-here",
+    client_secret="your-client-secret-here",
+    refresh_token="your-refresh-token-here"
+)
+
+# All queries will now include the custom headers
+result = sf.query("SELECT Id FROM Account LIMIT 5")
+```
+
+### Features
+
+- **Multiple Headers**: Separate multiple key-value pairs with `|`
+- **Value Support**: Values can contain spaces, equals signs, and other special characters
+- **Empty Handling**: Empty keys or values are automatically ignored
+- **Automatic Integration**: Headers are automatically added to all HTTP requests
+
+### Configuration
+
+| Variable      | Description                                        | Default |
+|---------------|----------------------------------------------------|---------|
+| `SFQ_HEADERS` | Custom headers in format `key1:value1|key2:value2` | None    |
+
+### Use Cases
+
+- **Deployment Tracking**: Add deployment IDs to track which deployment made API calls
+- **Environment Identification**: Identify requests from different environments (dev, staging, prod)
+- **Team Attribution**: Track which team or service is making requests
+- **Custom Metadata**: Add any custom metadata needed for tracking and debugging
+
