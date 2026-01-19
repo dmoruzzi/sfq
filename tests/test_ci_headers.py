@@ -221,7 +221,7 @@ class TestCIHeaders:
                 "x-sfdc-addinfo-ci_provider": "gitlab",
                 "x-sfdc-addinfo-pipeline_id": "789012",
                 "x-sfdc-addinfo-pii-user_login": "jdoe",
-                "x-sfdc-addinfo-pii-user_email": "jdoe@corp.com",
+                "x-sfdc-addinfo-pii-user_email": "jdoe_at_corp_com",  # @ -> _at_, . -> _
                 "x-sfdc-addinfo-pii-user_id": "48291",
             }
             
@@ -381,7 +381,49 @@ class TestCIHeaders:
             "SFQ_ATTACH_CI": "false",
             "SFQ_ATTACH_CI_PII": "true",
         }
-        
+         
         with patch.dict(os.environ, env, clear=True):
             headers = CIHeaders.get_ci_headers()
             assert headers == {}
+
+    def test_normalize_insert_value(self):
+        """Test value normalization for header values."""
+        # Test valid characters are preserved
+        assert CIHeaders._normalize_insert_value("valid_name123") == "valid_name123"
+        assert CIHeaders._normalize_insert_value("user-name") == "user-name"
+        assert CIHeaders._normalize_insert_value("user_name") == "user_name"
+        assert CIHeaders._normalize_insert_value("User123") == "User123"
+        
+        # Test character replacements and filtering
+        assert CIHeaders._normalize_insert_value("user[name]") == "username"  # [] removed
+        assert CIHeaders._normalize_insert_value("user name") == "user_name"  # space -> underscore
+        assert CIHeaders._normalize_insert_value("user@domain.com") == "user_at_domain_com"  # @ -> _at_, . -> _
+        assert CIHeaders._normalize_insert_value("user!@#$%") == "user_at_"  # special chars filtered out, @ -> _at_
+        assert CIHeaders._normalize_insert_value("user with spaces and [brackets]") == "user_with_spaces_and_brackets"  # spaces and [] handled
+        
+        # Test empty string
+        assert CIHeaders._normalize_insert_value("") == ""
+        
+        # Test special characters
+        assert CIHeaders._normalize_insert_value("user.test") == "user_test"  # . -> _
+        assert CIHeaders._normalize_insert_value("user/test") == "user_test"  # / -> _
+        assert CIHeaders._normalize_insert_value("user&test") == "usertest"  # & completely removed
+
+    def test_get_ci_headers_pii_sanitization(self):
+        """Test that PII values with invalid characters are sanitized."""
+        env = {
+            "GITHUB_ACTIONS": "true",
+            "GITHUB_RUN_ID": "123456",
+            "GITHUB_ACTOR": "user[name]",  # Contains invalid characters
+            "GITHUB_ACTOR_ID": "123 45",  # Contains space
+            "GITHUB_TRIGGERING_ACTOR": "user@domain.com",  # Contains @ and .
+            "SFQ_ATTACH_CI_PII": "true",
+        }
+        
+        with patch.dict(os.environ, env, clear=True):
+            headers = CIHeaders.get_ci_headers()
+            
+            # Verify sanitization
+            assert headers["x-sfdc-addinfo-pii-actor"] == "username"  # [ and ] removed
+            assert headers["x-sfdc-addinfo-pii-actor_id"] == "123_45"  # space -> underscore
+            assert headers["x-sfdc-addinfo-pii-triggering_actor"] == "user_at_domain_com"  # @ -> _at_, . -> _
