@@ -6,9 +6,15 @@ of traceable CI metadata to outbound HTTP requests.
 """
 
 import os
-from typing import Dict, Optional
+from typing import Dict, Optional, TypedDict
 
 from .utils import get_logger
+
+
+class CIProviderConfig(TypedDict):
+    detect_var: str
+    non_pii_vars: Dict[str, str]
+    pii_vars: Dict[str, str]
 
 
 class CIHeaders:
@@ -20,7 +26,7 @@ class CIHeaders:
     opt-in via SFQ_ATTACH_CI_PII environment variable.
     """
 
-    CI_PROVIDERS = {
+    CI_PROVIDERS: Dict[str, CIProviderConfig] = {
         "github": {
             "detect_var": "GITHUB_ACTIONS",
             "non_pii_vars": {
@@ -166,13 +172,22 @@ class CIHeaders:
         Returns:
             Dict[str, str]: Headers to attach, or empty dict if not applicable.
         """
-        headers: Dict[str, str] = {}
+        # Respect SFQ_ATTACH_CI setting - if explicitly set to false, don't attach any headers
+        if os.environ.get("SFQ_ATTACH_CI", "").lower() in {
+            "false",
+            "0",
+            "no",
+            "n",
+        }:
+            return {}
         
+        headers: Dict[str, str] = {}
+         
         # Get the environment variable
         sfq_headers_env = os.environ.get("SFQ_HEADERS", "")
         if not sfq_headers_env:
             return headers
-        
+         
         # Parse the key:value pairs separated by |
         try:
             header_pairs = sfq_headers_env.split("|")
@@ -188,5 +203,5 @@ class CIHeaders:
             # If parsing fails, log and return empty headers
             logger = get_logger(__name__)
             logger.warning("Failed to parse SFQ_HEADERS environment variable: %s", e)
-        
+         
         return headers
