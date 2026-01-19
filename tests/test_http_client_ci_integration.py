@@ -90,7 +90,7 @@ class TestHTTPClientCIIntegration:
             # Verify CI headers
             assert headers["x-sfdc-addinfo-ci_provider"] == "gitlab"
             assert headers["x-sfdc-addinfo-pipeline_id"] == "789012"
-            assert headers["x-sfdc-addinfo-project_path"] == "org/project"
+            assert headers["x-sfdc-addinfo-project_path"] == "org_project"  # / -> _
             assert headers["x-sfdc-addinfo-job_name"] == "deploy"
             assert headers["x-sfdc-addinfo-commit_ref_name"] == "main"
             assert headers["x-sfdc-addinfo-runner_id"] == "456"
