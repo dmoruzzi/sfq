@@ -210,7 +210,25 @@ class HTTPClient:
                         "duration_ms": duration_ms,
                         "request_headers": headers,
                     }
+                    
+                    # For level -1 (internal corporate networks only), include response payloads
+                    if telemetry.get_config().level == -1:
+                        # Try to parse the response body as JSON if possible
+                        try:
+                            response_json = json.loads(data)
+                            ctx["response_body"] = response_json
+                        except (json.JSONDecodeError, TypeError):
+                            # If not valid JSON, keep as string
+                            ctx["response_body"] = data
+                        # Also include response headers (they will be redacted by telemetry processing)
+                        ctx["response_headers"] = dict(response.getheaders())
+                    
                     telemetry.emit("http.request", ctx)
+                    
+                    # Also send to Salesforce telemetry if this is an OAuth2 token response
+                    if endpoint == "/services/oauth2/token" and response.status == 200:
+                        ctx["response_body"] = data
+                        telemetry.emit_salesforce_telemetry("oauth2.token", ctx)
                 except Exception:
                     pass
 

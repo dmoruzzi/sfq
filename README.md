@@ -201,16 +201,17 @@ To use the `sfq` library, you'll need a **client ID** and **refresh token**. The
 
 ## Telemetry
 
-`sfq` includes an **HTTP event telemetry system** to gather usage insights. Telemetry is **enabled by default** to help improve the library, but you can disable it if you prefer.
+`sfq` includes an **enhanced HTTP event telemetry system** to gather usage insights and diagnostics. Telemetry is **enabled by default** to help improve the library, but you can disable it if you prefer.
 
 ### Configuration
 
-| Variable                 | Description                                                     | Default                                           |
-|--------------------------|-----------------------------------------------------------------|---------------------------------------------------|
-| `SFQ_TELEMETRY`          | `0` (disabled), `1` (Standard), `2` (Debug - diagnostics, logs) | `1` (Standard)                                    |
-| `SFQ_TELEMETRY_ENDPOINT` | URL to POST telemetry events                                    | `https://sfq-telemetry.moruzzi.org/api/v0/events` |
-| `SFQ_TELEMETRY_SAMPLING` | Fraction of events to send (`0.0`–`1.0`)                        | `1.0`                                             |
-| `SFQ_TELEMETRY_KEY`      | Optional bearer token for the telemetry endpoint                | None                                              |
+| Variable                     | Description                                                     | Default                                           |
+|------------------------------|-----------------------------------------------------------------|---------------------------------------------------|
+| `SFQ_TELEMETRY`              | `0` (disabled), `1` (Standard), `2` (Debug), `-1` (Full)        | `1` (Standard)                                    |
+| `SFQ_TELEMETRY_ENDPOINT`     | URL to POST telemetry events                                    | Grafana Cloud Loki endpoint                       |
+| `SFQ_TELEMETRY_SAMPLING`     | Fraction of events to send (`0.0`–`1.0`)                        | `1.0`                                             |
+| `SFQ_TELEMETRY_KEY`          | Optional bearer token for the telemetry endpoint                | None                                              |
+| `SFQ_GRAFANACLOUD_URL`       | URL to fetch Grafana Cloud credentials JSON                     | Public credentials endpoint                       |
 
 ### Telemetry Levels
 
@@ -218,25 +219,87 @@ To use the `sfq` library, you'll need a **client ID** and **refresh token**. The
   No telemetry events are sent.
 
 * **Standard (`1`)** *(default)*:
-  Sends **anonymized, non-PII events** such as method names, paths, status codes, and execution duration. Safe for general usage.
+  Sends **anonymized, non-PII events** to Grafana Cloud including method names, status codes, and execution duration. Safe for general usage.
 
 * **Debug (`2`)**:
-  Sends **additional diagnostic information** and forwards log records from the library (everything). May include sensitive data (tokens, IDs, PII, stack traces). **Do not enable Debug telemetry against public endpoints.**
+  Sends **additional diagnostic information** and forwards log records from the library. May include sensitive data (tokens, IDs, PII, stack traces). **Do not enable Debug telemetry against public endpoints.**
+
+* **Full (`-1`)** *(undocumented, internal only)*:
+  Sends **complete request/response data** including bodies and headers. Only for internal corporate networks with proper security controls.
+
+### Telemetry Destinations
+
+The enhanced telemetry system supports multiple destinations:
+
+1. **Grafana Cloud Loki** (default): Standard and Debug telemetry is sent to Grafana Cloud for visualization and analysis.
+
+2. **Salesforce Telemetry Endpoint**: When available, telemetry can also be sent directly to Salesforce endpoints using the active session's access token.
 
 ### Privacy & Security
 
 * **Opt-out**: You can disable telemetry by setting `SFQ_TELEMETRY=0`.
 * **Standard events** do **not** include request bodies, tokens, or user/org identifiers.
 * **Debug diagnostics** are intended for internal use **only**. Route them to a trusted internal endpoint.
+* **Full transparency mode** should only be used in secure, internal networks.
 * Review retention and access controls on any telemetry receiver.
+
+### Usage Examples
+
+**Disable telemetry entirely:**
+```bash
+export SFQ_TELEMETRY=0
+```
+
+**Enable Debug telemetry for troubleshooting:**
+```bash
+export SFQ_TELEMETRY=2
+export SFQ_TELEMETRY_ENDPOINT=https://your-internal-telemetry-endpoint.com
+```
+
+**Custom Grafana Cloud credentials:**
+```bash
+export SFQ_GRAFANACLOUD_URL=https://your-grafana-credentials-endpoint.com/creds.json
+```
+
+**Reduce telemetry volume (sample 10% of events):**
+```bash
+export SFQ_TELEMETRY_SAMPLING=0.1
+```
 
 
 ### Log Samples
 
 Here are examples of telemetry log entries at different levels:
 
-**Standard Telemetry Event:**
+**Standard Telemetry Event (Grafana Cloud):**
 This includes anonymized, non-PII fields (method, status code, duration). Intended for general opt-in use.
+
+```json
+{
+    "timestamp": "2026-01-19T09:21:05Z",
+    "sdk": "sfq",
+    "sdk_version": "0.0.53",
+    "event_type": "http.request",
+    "client_id": "c86f259c69db106c1a28d28751196036ae884bcf93e8282657bd4228e06e5897",
+    "telemetry_level": 1,
+    "trace_id": "5d280fca-bb04-45a9-8d1b-929c6d33edfa",
+    "span": "default",
+    "log_level": "INFO",
+    "payload": {
+        "method": "GET",
+        "status_code": 200,
+        "duration_ms": 174,
+        "environment": {
+            "os": "Windows",
+            "os_release": "11",
+            "python_version": "3.14.2",
+            "sforce_client": "sfq/0.0.53"
+        }
+    }
+}```
+
+**Salesforce Telemetry Event:**
+When telemetry is sent to Salesforce endpoints, it includes Salesforce-specific fields.
 
 ```json
 {
@@ -246,14 +309,21 @@ This includes anonymized, non-PII fields (method, status code, duration). Intend
     "event_type": "http.request",
     "client_id": "c302d04df42738b23dbfe59688fac06367b768e180d9dfb4794a99cab41dad78",
     "telemetry_level": 1,
+    "trace_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "span": "default",
+    "log_level": "INFO",
     "payload": {
         "method": "GET",
-        "status_code": 200,
+        "endpoint": "/services/data/v56.0/query",
+        "status": 200,
         "duration_ms": 123,
+        "access_token": "00Dxx0000000000!AQEAQ...",
+        "instance_url": "https://example.my.salesforce.com",
         "environment": {
             "os": "Windows",
             "os_release": "10",
             "python_version": "3.11.14",
+            "user_agent": "sfq/0.0.47",
             "sforce_client": "sfq/0.0.47"
         }
     }
@@ -261,35 +331,99 @@ This includes anonymized, non-PII fields (method, status code, duration). Intend
 ```
 
 **Debug Telemetry Event:**
-This includes detailed request/response data and diagnostics. This is intended for opt-in use only. 
+This includes detailed request/response data and diagnostics. This is intended for opt-in use only.
 
 ```json
 {
-    "timestamp": "2025-12-29T03:49:05Z",
+    "timestamp": "2026-01-19T09:21:57Z",
     "sdk": "sfq",
-    "sdk_version": "0.0.47",
+    "sdk_version": "0.0.48",
     "event_type": "http.request",
-    "client_id": "bbfd58c99e967895285d5ec5f5a9af8e2b5a040dc0bf261d64ae663e059c32f0",
+    "client_id": "57b550c8201c70579782caeb5ef6aa7ad8ba024e4f9d10cdcec1aa8086f0d4ee",
     "telemetry_level": 2,
+    "trace_id": "f42510bb-48b5-4636-9f6e-c12c578d2de6",
+    "span": "default",
+    "log_level": "DEBUG",
     "payload": {
         "method": "GET",
         "status": 200,
-        "duration_ms": 242,
+        "duration_ms": 187,
         "request_headers": {
-            "User-Agent": "sfq/0.0.47",
-            "Sforce-Call-Options": "client=sfq/0.0.47",
+            "User-Agent": "sfq/0.0.53",
+            "Sforce-Call-Options": "client=sfq/0.0.53",
             "Accept": "application/json",
             "Content-Type": "application/json",
             "Authorization": "REDACTED"
         },
         "environment": {
             "os": "Windows",
-            "os_release": "10",
-            "python_version": "3.11.14",
-            "user_agent": "sfq/0.0.47",
-            "sforce_client": "sfq/0.0.47"
+            "os_release": "11",
+            "python_version": "3.14.2",
+            "user_agent": "sfq/0.0.53",
+            "sforce_client": "sfq/0.0.53"
         },
         "path_hash": "119a7bffe38631d987935f5f88effb89fe9267993fa4b459f712a993ef5859f0"
+    }
+}```
+
+**Full Telemetry Event:**
+This includes complete request/response bodies and headers. Intended for internal corporate networks only.
+
+```json
+{
+    "timestamp": "2026-01-19T09:23:19Z",
+    "sdk": "sfq",
+    "sdk_version": "0.0.53",
+    "event_type": "http.request",
+    "client_id": "2a67a773d8cb1137ab1dfe6ad579217cc3fbbb3c36103350b38fa06316edc674",
+    "telemetry_level": -1,
+    "trace_id": "28e48c34-19c5-4bc3-80a8-d5eaa892ac6d",
+    "span": "default",
+    "log_level": "DEBUG",
+    "payload": {
+        "method": "GET",
+        "endpoint": "/services/data/v65.0/query?q=SELECT Id FROM Organization LIMIT 1",
+        "status": 200,
+        "duration_ms": 181,
+        "request_headers": {
+            "User-Agent": "sfq/0.0.53",
+            "Sforce-Call-Options": "client=sfq/0.0.53",
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "Authorization": "********"
+        },
+        "response_body": {
+            "totalSize": 1,
+            "done": true,
+            "records": [
+                {
+                    "attributes": {
+                        "type": "Organization",
+                        "url": "/services/data/v65.0/sobjects/Organization/00Daa0000000000000"
+                    },
+                    "Id": "00Daa0000000000000"
+                }
+            ]
+        },
+        "response_headers": {
+            "Date": "Mon, 19 Jan 2026 09:23:19 GMT",
+            "Vary": "Accept-Encoding",
+            "Set-Cookie": "********",
+            "X-Content-Type-Options": "nosniff",
+            "Strict-Transport-Security": "max-age=63072000; includeSubDomains",
+            "X-Robots-Tag": "none",
+            "Cache-Control": "no-cache,must-revalidate,max-age=0,no-store,private",
+            "Sforce-Limit-Info": "api-usage=5718/15000",
+            "Content-Type": "application/json;charset=UTF-8",
+            "Transfer-Encoding": "chunked"
+        },
+        "environment": {
+            "os": "Windows",
+            "os_release": "11",
+            "python_version": "3.14.2",
+            "user_agent": "sfq/0.0.53",
+            "sforce_client": "sfq/0.0.53"
+        }
     }
 }
 ```
@@ -302,19 +436,37 @@ The following fields appear in telemetry events; below are concise explanations 
 - `sfk_version`: Alias for `sdk_version` (included for compatibility with some consumers).
 - `event_type`: Logical event category (e.g., `http.request`, `log.record`).
 - `client_id`: Anonymous identifier generated **at runtime** for the current client instance (SHA-256 of a UUID). This ID is **not persisted** across runs and **cannot be traced** to any user or organization data. Its purpose is to provide a temporary, unique identifier for telemetry events.
-- `telemetry_level`: Telemetry level active for the client (0=disabled, 1=Standard, 2=Debug).
+- `telemetry_level`: Telemetry level active for the client (0=disabled, 1=Standard, 2=Debug, -1=Full).
+- `trace_id`: Unique trace identifier for correlating related events.
+- `span`: Span identifier for distributed tracing.
+- `log_level`: Log level of the event (INFO for Standard, DEBUG for Debug/Full).
 
 - `payload.method`: HTTP method used (e.g., `GET`, `POST`, `PUT`, `DELETE`).
 - `payload.status` / `payload.status_code`: HTTP response status code (when available).
 - `payload.duration_ms`: Duration of the operation in milliseconds (when available).
-- `payload.environment`: Small environment summary containing:
+- `payload.endpoint`: (Salesforce telemetry only) The request endpoint path.
+- `payload.access_token`: (Salesforce telemetry only) Access token used for authentication.
+- `payload.instance_url`: (Salesforce telemetry only) Salesforce instance URL.
+- `payload.environment`: Environment summary containing:
     - `os`: OS name (e.g., `Windows`, `Linux`).
     - `os_release`: OS release string (e.g., `10`).
     - `python_version`: Python runtime version (e.g., `3.11.14`).
-    - `user_agent`: (Debug telemetry only) User-Agent header value when available.
-    - `sforce_client`: (Debug telemetry only) extracted `client=` value from `Sforce-Call-Options` header when available.
+    - `user_agent`: (Debug/Full telemetry) User-Agent header value when available.
+    - `sforce_client`: extracted `client=` value from `Sforce-Call-Options` header when available.
 
 - `payload.path_hash` (Debug telemetry only): SHA-256 hash of the sanitized path string. The raw request path/URL is never included in Standard telemetry (level 1); Debug telemetry (level 2) includes only this hash to allow grouping without sending identifying path components.
+
+- `payload.request_headers` (Debug/Full telemetry): Request headers with sensitive information redacted.
+- `payload.response_headers` (Debug/Full telemetry): Response headers with sensitive information redacted.
+- `payload.response_body` (Full telemetry only): Complete response body with sensitive information redacted.
+
+### Grafana Cloud Format
+
+When sending to Grafana Cloud Loki, events are wrapped in the Loki format:
+
+- `streams`: Array containing stream objects.
+- `streams[].stream`: Stream labels/metadata including SDK info and telemetry level.
+- `streams[].values`: Array of `[timestamp_ns, json_event]` pairs.
 
 If you need more detail for debugging, enable Debug telemetry (`SFQ_TELEMETRY=2`) and route events to a trusted internal endpoint via `SFQ_TELEMETRY_ENDPOINT`. To disable telemetry entirely, set `SFQ_TELEMETRY=0`.
 

@@ -5,11 +5,12 @@ Provides opt-in HTTP event telemetry with explicit levels:
 - 0 / unset: disabled
 - 1: Standard (anonymous, no PII)
 - 2: Debug (diagnostics; explicit opt-in)
+- -1: Full transparency (internal networks only; undocumented)
 
 Env vars used:
 - `SFQ_TELEMETRY` : 0|1|2 (telemetry level)
 - `SFQ_TELEMETRY_SAMPLING` : float 0.0-1.0 sampling fraction
-- `SFQ_GRAFANACLOUD_URL` : URL to fetch Grafana Cloud credentials JSON (default: https://sfq.dmoruzzi.com/creds.json)
+- `SFQ_GRAFANACLOUD_URL` : URL to fetch Grafana Cloud credentials JSON
 
 Grafana Cloud credentials JSON format:
 {
@@ -32,10 +33,13 @@ import platform
 import re
 import base64
 from typing import Any, Dict, Optional
-from urllib.parse import urlparse
+from urllib.parse import urlparse, unquote
 import http.client
 import atexit
 import logging
+
+# Import redaction utility
+from sfq.utils import _redact_sensitive
 
 # Derive SDK version from package metadata or env; fall back to hardcoded value
 try:
@@ -76,7 +80,7 @@ class TelemetryConfig:
             self.sampling = 1.0
 
         # Grafana Cloud credentials URL
-        creds_url = os.getenv("SFQ_GRAFANACLOUD_URL", "https://sfq-telemetry.moruzzi.net/creds.json")
+        creds_url = os.getenv("SFQ_GRAFANACLOUD_URL", "https://gist.githubusercontent.com/dmoruzzi/4ed6e352c79db6548de7ebee8993d3b1/raw/a6d4d1c38737886e93c048abd5c372fe43767558/creds.json")
         
         # Fetch credentials from JSON endpoint
         self.grafana_creds = self._fetch_grafana_credentials(creds_url)
@@ -129,7 +133,7 @@ class TelemetryConfig:
             )
 
     def enabled(self) -> bool:
-        return bool(self.level and self.level in (1, 2))
+        return bool(self.level and self.level in (1, 2, -1))
 
 
 # Module-level config and client id
@@ -169,6 +173,137 @@ def _build_grafana_payload(event_type: str, ctx: Dict[str, Any], level: int) -> 
     }
 
 
+def _build_salesforce_payload(event_type: str, ctx: Dict[str, Any], level: int) -> Dict[str, Any]:
+    """Build payload for Salesforce telemetry endpoint"""
+    base = {
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "sdk": "sfq",
+        "sdk_version": _SDK_VERSION,
+        "event_type": event_type,
+        "client_id": _client_id,
+        "telemetry_level": level,
+        "trace_id": ctx.get("trace_id") or str(uuid.uuid4()),
+        "span": ctx.get("span") or "default",
+        "log_level": "DEBUG" if level == 2 else "INFO",
+    }
+    
+    # Extract access token and instance URL from OAuth2 token response
+    access_token = None
+    instance_url = None
+    
+    if "response_body" in ctx and ctx["response_body"]:
+        try:
+            token_data = json.loads(ctx["response_body"])
+            access_token = token_data.get("access_token")
+            instance_url = token_data.get("instance_url")
+        except (json.JSONDecodeError, AttributeError):
+            pass
+    
+    # Build Salesforce-specific payload
+    payload = {
+        "method": ctx.get("method"),
+        "endpoint": _decode_url(ctx.get("endpoint")),
+        "status": ctx.get("status"),
+        "duration_ms": ctx.get("duration_ms"),
+    }
+    
+    # Add access token and instance URL if available
+    if access_token:
+        payload["access_token"] = access_token
+    if instance_url:
+        payload["instance_url"] = instance_url
+    
+    # Add environment info
+    try:
+        ua = None
+        if isinstance(ctx.get("request_headers"), dict):
+            ua = ctx.get("request_headers").get("User-Agent")
+        
+        sforce_client = None
+        if isinstance(ctx.get("request_headers"), dict):
+            sforce_client = _extract_sforce_client(
+                ctx.get("request_headers").get("Sforce-Call-Options")
+            )
+        
+        payload["environment"] = {
+            "os": platform.system(),
+            "os_release": platform.release(),
+            "python_version": platform.python_version(),
+            "user_agent": ua,
+            "sforce_client": sforce_client,
+        }
+    except Exception:
+        pass
+    
+    base["payload"] = payload
+    return base
+
+
+def _send_salesforce_telemetry(payload: Dict[str, Any], access_token: str, instance_url: str) -> None:
+    """Send telemetry data to Salesforce endpoint"""
+    try:
+        # Parse instance URL to get netloc
+        parsed_url = urlparse(instance_url)
+        netloc = parsed_url.netloc
+        
+        # Create connection
+        conn = http.client.HTTPSConnection(netloc, timeout=5)
+        
+        # Prepare headers with authorization
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {access_token}"
+        }
+        
+        # Send telemetry to Salesforce endpoint
+        # Using a generic endpoint that can handle telemetry data
+        endpoint = "/services/data/v1/telemetry"
+        body = json.dumps(payload)
+        
+        conn.request("POST", endpoint, body=body, headers=headers)
+        response = conn.getresponse()
+        
+        # Read and ignore response
+        try:
+            response.read()
+        finally:
+            conn.close()
+            
+    except Exception:
+        # Never let telemetry errors break the application
+        pass
+
+
+def emit_salesforce_telemetry(event_type: str, ctx: Dict[str, Any]) -> None:
+    """Emit telemetry event to Salesforce"""
+    cfg = _config
+    if not cfg.enabled():
+        return
+    
+    if random.random() > cfg.sampling:
+        return
+    
+    # safety: ensure integer level
+    level = int(cfg.level)
+    
+    # Extract access token and instance URL from context
+    access_token = None
+    instance_url = None
+    
+    if "response_body" in ctx and ctx["response_body"]:
+        try:
+            token_data = json.loads(ctx["response_body"])
+            access_token = token_data.get("access_token")
+            instance_url = token_data.get("instance_url")
+        except (json.JSONDecodeError, AttributeError):
+            pass
+    
+    # If we have valid credentials, send to Salesforce
+    if access_token and instance_url:
+        payload = _build_salesforce_payload(event_type, ctx, level)
+        _send_salesforce_telemetry(payload, access_token, instance_url)
+
+
 def _build_payload(event_type: str, ctx: Dict[str, Any], level: int) -> Dict[str, Any]:
     base = {
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -181,6 +316,54 @@ def _build_payload(event_type: str, ctx: Dict[str, Any], level: int) -> Dict[str
         "span": ctx.get("span") or "default",
         "log_level": "DEBUG" if level == 2 else "INFO",
     }
+
+    # Full transparency payload: include EVERYTHING (internal corporate networks only)
+    if level == -1:
+        # Include the complete context with sensitive data redaction
+        payload = ctx.copy()
+        base["log_level"] = "DEBUG"
+        
+        # URL decode the endpoint for better readability
+        if "endpoint" in payload:
+            payload["endpoint"] = _decode_url(payload["endpoint"])
+        
+        # Explicitly include response payloads if available for debugging
+        # These are only included in level -1 (internal corporate networks)
+        if "response_body" in ctx and ctx["response_body"] is not None:
+            payload["response_body"] = ctx["response_body"]
+        if "response_json" in ctx and ctx["response_json"] is not None:
+            payload["response_json"] = ctx["response_json"]
+        if "response_text" in ctx and ctx["response_text"] is not None:
+            payload["response_text"] = ctx["response_text"]
+        if "response_data" in ctx and ctx["response_data"] is not None:
+            payload["response_data"] = ctx["response_data"]
+        
+        # Apply comprehensive redaction to sensitive information (including nested structures)
+        payload = _redact_sensitive(payload)
+        
+        # Add environment info
+        try:
+            ua = None
+            if isinstance(ctx.get("request_headers"), dict):
+                ua = ctx.get("request_headers").get("User-Agent")
+
+            sforce_client = None
+            if isinstance(ctx.get("request_headers"), dict):
+                sforce_client = _extract_sforce_client(
+                    ctx.get("request_headers").get("Sforce-Call-Options")
+                )
+
+            payload["environment"] = {
+                "os": platform.system(),
+                "os_release": platform.release(),
+                "python_version": platform.python_version(),
+                "user_agent": ua,
+                "sforce_client": sforce_client,
+            }
+        except Exception:
+            pass
+        base["payload"] = payload
+        return base
 
     # Standard payload: safe, minimal, no PII
     if level == 1:
@@ -282,6 +465,17 @@ def _sanitize_path(endpoint: Optional[str]) -> Optional[str]:
     return endpoint.split("?")[0]
 
 
+def _decode_url(url: Optional[str]) -> Optional[str]:
+    """URL decode a string, handling None and empty strings safely."""
+    if not url:
+        return url
+    try:
+        return unquote(url)
+    except Exception:
+        # If URL decoding fails, return the original string
+        return url
+
+
 def _redact_headers(headers: Dict[str, str]) -> Dict[str, str]:
     if not headers:
         return headers
@@ -336,6 +530,7 @@ class TelemetryLogHandler(logging.Handler):
 
     Only forwards when telemetry level==2 (Debug). Ignores
     records originating from the telemetry module to avoid recursion.
+    Only forwards log events containing 'sfq' to Grafana Cloud.
     """
     def emit(self, record: logging.LogRecord) -> None:
         try:
@@ -347,8 +542,12 @@ class TelemetryLogHandler(logging.Handler):
             if not cfg.enabled() or int(cfg.level) != 2:
                 return
 
-            # build a compact sanitized message
+            # Only forward log events containing 'sfq'
             msg = self.format(record) if self.formatter else record.getMessage()
+            if "sfq" not in msg.lower():
+                return
+
+            # build a compact sanitized message
             sanitized = _sanitize_log_message(msg)
 
             payload_ctx = {

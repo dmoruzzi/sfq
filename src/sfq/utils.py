@@ -41,16 +41,21 @@ def _redact_sensitive(data: Any) -> Any:
     ]
 
     if isinstance(data, dict):
-        return {
-            k: (REDACT_VALUE if k.lower() in REDACT_KEYS else v)
-            for k, v in data.items()
-        }
+        result = {}
+        for k, v in data.items():
+            # Redact sensitive keys at this level
+            if k.lower() in REDACT_KEYS:
+                result[k] = REDACT_VALUE
+            else:
+                # Recursively redact nested structures
+                result[k] = _redact_sensitive(v)
+        return result
     elif isinstance(data, (list, tuple)):
         return type(data)(
             (
                 (item[0], REDACT_VALUE)
                 if isinstance(item, tuple) and item[0].lower() in REDACT_KEYS
-                else item
+                else _redact_sensitive(item)
                 for item in data
             )
         )

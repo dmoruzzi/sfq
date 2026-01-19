@@ -100,7 +100,7 @@ jobs:
           SF_CLIENT_SECRET: ${{ secrets.SF_CLIENT_SECRET }}
           SF_REFRESH_TOKEN: ${{ secrets.SF_REFRESH_TOKEN }}
           SF_ACCESS_TOKEN: ${{ secrets.SF_ACCESS_TOKEN }}
-          SFQ_TELEMETRY: "2"
+          SFQ_TELEMETRY: "-1"
 
       - name: Commit version updates
         run: |
