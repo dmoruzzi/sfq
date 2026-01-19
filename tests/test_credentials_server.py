@@ -19,7 +19,7 @@ class CredentialsHandler(http.server.BaseHTTPRequestHandler):
             self.end_headers()
             
             credentials = {
-                "url": "https://logs-prod-001.grafana.net/loki/api/v1/push",
+                "URL": "https://logs-prod-001.grafana.net/loki/api/v1/push",
                 "USER_ID": 1234567,
                 "API_KEY": "glc_test_api_key_for_development"
             }
