@@ -178,7 +178,7 @@ def test_authentication():
             os.environ.pop('SFQ_TELEMETRY', None)
 
 def test_error_handling():
-    """Test error handling for invalid credentials"""
+    """Test error handling for invalid credentials - now fails open"""
     print("Testing error handling...")
     
     # Mock failed credentials fetch
@@ -196,23 +196,124 @@ def test_error_handling():
         try:
             from sfq.telemetry import TelemetryConfig
             
-            # This should raise an exception
-            try:
-                config = TelemetryConfig()
-                print("✗ Error handling test failed: Expected exception not raised")
-                assert False, "Expected RuntimeError was not raised"
-            except RuntimeError as e:
-                if "Failed to fetch Grafana credentials" in str(e):
-                    print("[PASS] Error handling test passed")
-                else:
-                    print(f"[FAIL] Error handling test failed: Wrong exception message: {e}")
-                    assert False, f"Wrong exception message: {e}"
+            # With new fail-open behavior, this should not raise an exception
+            # but should result in empty credentials and disabled telemetry
+            config = TelemetryConfig()
+            
+            # Should have empty credentials (fails open)
+            assert config.user_id == "None" or config.user_id == ""
+            assert config.api_key == "None" or config.api_key == ""
+            
+            print("[PASS] Error handling test passed (fails open)")
         except Exception as e:
-            print(f"✗ Error handling test failed with unexpected error: {e}")
+            print(f"[FAIL] Error handling test failed: {e}")
             raise
         finally:
             os.environ.pop('SFQ_GRAFANACLOUD_URL', None)
             os.environ.pop('SFQ_TELEMETRY', None)
+
+def test_base64_credentials():
+    """Test base64 encoded credentials functionality"""
+    print("Testing base64 encoded credentials...")
+    
+    # Create valid credentials JSON and encode as base64
+    import base64
+    credentials_json = {
+        "URL": "https://logs-prod-001.grafana.net/loki/api/v1/push",
+        "USER_ID": 1234567,
+        "API_KEY": "test_api_key"
+    }
+    
+    # Encode credentials as base64
+    credentials_b64 = base64.b64encode(json.dumps(credentials_json).encode()).decode()
+    
+    os.environ['SFQ_GRAFANACLOUD_URL'] = credentials_b64
+    os.environ['SFQ_TELEMETRY'] = '2'
+    
+    try:
+        from sfq.telemetry import TelemetryConfig
+        
+        config = TelemetryConfig()
+        
+        # Verify credentials were decoded and parsed correctly
+        assert config.user_id == "1234567"
+        assert config.api_key == "test_api_key"
+        assert config.endpoint == "https://logs-prod-001.grafana.net/loki/api/v1/push"
+        assert config.enabled() == True
+        
+        print("[PASS] Base64 credentials test passed")
+    except Exception as e:
+        print(f"[FAIL] Base64 credentials test failed: {e}")
+        raise
+    finally:
+        os.environ.pop('SFQ_GRAFANACLOUD_URL', None)
+        os.environ.pop('SFQ_TELEMETRY', None)
+
+def test_base64_error_handling():
+    """Test error handling for invalid base64 credentials"""
+    print("Testing base64 error handling...")
+    
+    # Set invalid base64 string
+    os.environ['SFQ_GRAFANACLOUD_URL'] = 'invalid_base64_string!!'
+    os.environ['SFQ_TELEMETRY'] = '1'
+    
+    try:
+        from sfq.telemetry import TelemetryConfig
+        
+        # This should fail open - return empty credentials and disable telemetry
+        config = TelemetryConfig()
+        
+        # Should not have valid credentials (fails open)
+        assert config.user_id == "None" or config.user_id == ""
+        assert config.api_key == "None" or config.api_key == ""
+        
+        print("[PASS] Base64 error handling test passed (failed open as expected)")
+    except Exception as e:
+        print(f"[FAIL] Base64 error handling test failed: {e}")
+        raise
+    finally:
+        os.environ.pop('SFQ_GRAFANACLOUD_URL', None)
+        os.environ.pop('SFQ_TELEMETRY', None)
+
+def test_url_vs_base64_detection():
+    """Test that the system correctly detects URL vs base64 input"""
+    print("Testing URL vs base64 detection...")
+    
+    # Test URL detection
+    os.environ['SFQ_GRAFANACLOUD_URL'] = 'https://test.example.com/creds.json'
+    os.environ['SFQ_TELEMETRY'] = '1'
+    
+    try:
+        from sfq.telemetry import TelemetryConfig
+        
+        # Mock the HTTP response for URL case
+        mock_response = MagicMock()
+        mock_response.status = 200
+        mock_response.read.return_value = json.dumps({
+            "URL": "https://logs-prod-001.grafana.net/loki/api/v1/push",
+            "USER_ID": 1234567,
+            "API_KEY": "test_api_key"
+        }).encode()
+        
+        with patch('http.client.HTTPSConnection') as mock_conn:
+            mock_conn_instance = MagicMock()
+            mock_conn_instance.getresponse.return_value = mock_response
+            mock_conn.return_value = mock_conn_instance
+            
+            config = TelemetryConfig()
+            
+            # Should use URL fetching
+            assert config.user_id == "1234567"
+            assert config.api_key == "test_api_key"
+            
+        print("[PASS] URL detection test passed")
+        
+    except Exception as e:
+        print(f"[FAIL] URL detection test failed: {e}")
+        raise
+    finally:
+        os.environ.pop('SFQ_GRAFANACLOUD_URL', None)
+        os.environ.pop('SFQ_TELEMETRY', None)
 
 def main():
     """Run all tests"""
@@ -222,15 +323,21 @@ def main():
         test_credentials_fetching,
         test_payload_format,
         test_authentication,
-        test_error_handling
+        test_error_handling,
+        test_base64_credentials,
+        test_base64_error_handling,
+        test_url_vs_base64_detection
     ]
     
     passed = 0
     total = len(tests)
     
     for test in tests:
-        if test():
+        try:
+            test()
             passed += 1
+        except Exception as e:
+            print(f"Test {test.__name__} failed: {e}")
         print()
     
     print(f"Test Results: {passed}/{total} tests passed")

@@ -10,7 +10,7 @@ Provides opt-in HTTP event telemetry with explicit levels:
 Env vars used:
 - `SFQ_TELEMETRY` : 0|1|2 (telemetry level)
 - `SFQ_TELEMETRY_SAMPLING` : float 0.0-1.0 sampling fraction
-- `SFQ_GRAFANACLOUD_URL` : URL to fetch Grafana Cloud credentials JSON
+- `SFQ_GRAFANACLOUD_URL` : URL to fetch Grafana Cloud credentials JSON, or base64 encoded credentials JSON
 
 Grafana Cloud credentials JSON format:
 {
@@ -18,6 +18,8 @@ Grafana Cloud credentials JSON format:
   "USER_ID": 1234567,
   "API_KEY": "glc_eyJvIjoiMTIzNDU2NyIsIm4iOiJzdGFjay0xMjM0NTY3LWludGVncmF0aW9uLXNmcSIsImsiOiIxMjM0NTY3ODkwMTIzNDU2Nzg5MTIzNDUiLCJtIjp7InIiOiJwcm9kLXVzLWVhc3QtMCJ9fQ=="
 }
+
+Alternatively, you can provide base64 encoded credentials JSON instead of a URL.
 """
 from __future__ import annotations
 
@@ -96,7 +98,19 @@ class TelemetryConfig:
                 "Expected format: {\"URL\": \"...\", \"USER_ID\": \"...\", \"API_KEY\": \"...\"}"
             )
 
-    def _fetch_grafana_credentials(self, url: str) -> Dict[str, Any]:
+    def _fetch_grafana_credentials(self, url_or_b64: str) -> Dict[str, Any]:
+        """Fetch credentials from JSON endpoint or decode base64 encoded credentials"""
+        try:
+            # Check if it's a URL (starts with http:// or https://)
+            if url_or_b64.startswith("http://") or url_or_b64.startswith("https://"):
+                return self._fetch_from_url(url_or_b64)
+            else:
+                return self._fetch_from_base64(url_or_b64)
+        except Exception as e:
+            # If both approaches fail, fail open - don't send telemetry
+            return {}
+
+    def _fetch_from_url(self, url: str) -> Dict[str, Any]:
         """Fetch credentials from JSON endpoint using http.client"""
         try:
             parsed = urlparse(url)
@@ -106,13 +120,13 @@ class TelemetryConfig:
                 conn = http.client.HTTPConnection(parsed.hostname, parsed.port or 80, timeout=5)
             conn.request("GET", parsed.path or "/")
             response = conn.getresponse()
-             
+              
             if response.status != 200:
                 raise RuntimeError(
                     f"Failed to fetch Grafana credentials from {url}: HTTP {response.status}. "
                     "Please verify the credentials endpoint is accessible and returning valid JSON."
                 )
-             
+              
             try:
                 data = json.loads(response.read().decode('utf-8'))
                 if not isinstance(data, dict):
@@ -125,11 +139,29 @@ class TelemetryConfig:
                 )
             finally:
                 conn.close()
-                 
+                  
         except Exception as e:
             raise RuntimeError(
                 f"Failed to fetch Grafana credentials from {url}: {str(e)}. "
                 "Please check your network connection and credentials endpoint configuration."
+            )
+
+    def _fetch_from_base64(self, b64_encoded: str) -> Dict[str, Any]:
+        """Decode base64 encoded credentials JSON"""
+        try:
+            # Decode base64
+            decoded_bytes = base64.b64decode(b64_encoded)
+            decoded_str = decoded_bytes.decode('utf-8')
+            
+            # Parse JSON
+            data = json.loads(decoded_str)
+            if not isinstance(data, dict):
+                raise ValueError("Credentials JSON must be an object/dict")
+            return data
+        except Exception as e:
+            raise RuntimeError(
+                f"Failed to decode base64 credentials: {str(e)}. "
+                "Expected base64 encoded JSON in format: {\"URL\": \"...\", \"USER_ID\": \"...\", \"API_KEY\": \"...\"}"
             )
 
     def enabled(self) -> bool:

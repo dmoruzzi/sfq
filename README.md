@@ -211,7 +211,7 @@ To use the `sfq` library, you'll need a **client ID** and **refresh token**. The
 | `SFQ_TELEMETRY_ENDPOINT`     | URL to POST telemetry events                                    | Grafana Cloud Loki endpoint                       |
 | `SFQ_TELEMETRY_SAMPLING`     | Fraction of events to send (`0.0`–`1.0`)                        | `1.0`                                             |
 | `SFQ_TELEMETRY_KEY`          | Optional bearer token for the telemetry endpoint                | None                                              |
-| `SFQ_GRAFANACLOUD_URL`       | URL to fetch Grafana Cloud credentials JSON                     | Public credentials endpoint                       |
+| `SFQ_GRAFANACLOUD_URL`       | URL to fetch Grafana Cloud credentials JSON, or base64 encoded credentials JSON | Public credentials endpoint                       |
 
 ### Telemetry Levels
 
@@ -259,6 +259,12 @@ export SFQ_TELEMETRY_ENDPOINT=https://your-internal-telemetry-endpoint.com
 **Custom Grafana Cloud credentials:**
 ```bash
 export SFQ_GRAFANACLOUD_URL=https://your-grafana-credentials-endpoint.com/creds.json
+```
+
+**Base64 encoded credentials:**
+Instead of providing a URL, you can also provide base64 encoded credentials JSON:
+```bash
+export SFQ_GRAFANACLOUD_URL="$(echo '{"URL": "https://your-loki-endpoint.com/loki/api/v1/push", "USER_ID": "1234567", "API_KEY": "your-api-key-here"}' | base64 -w 0)"
 ```
 
 **Reduce telemetry volume (sample 10% of events):**
