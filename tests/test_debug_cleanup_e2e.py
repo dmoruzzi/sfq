@@ -1,4 +1,5 @@
 import http.client
+import time
 import json
 import os
 from datetime import datetime, timedelta, timezone
@@ -176,6 +177,14 @@ def test_debug_cleanup(sf_instance, already_executed: bool = False):
             "ApexLog creation failed or already attempted. Skipping recursion to avoid infinite loop."
         )
 
-    sleep(1)  # Race condition mitigation
+    poll_start_time = time.time()
+    while True:
+        apex_logs = sf_instance.query("SELECT Id FROM ApexLog LIMIT 1")
+        if apex_logs.get("records"):
+            break
+        if time.time() - poll_start_time > 30:
+            pytest.fail("Timeout waiting for Apex log to be created.")
+        sleep(1)
+
     return test_debug_cleanup(sf_instance, already_executed=True)
 
