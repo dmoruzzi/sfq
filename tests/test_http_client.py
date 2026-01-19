@@ -124,9 +124,11 @@ class TestHTTPClient:
             http_client.create_connection("test.my.salesforce.com")
 
     @patch("sfq.http_client.CIHeaders.get_ci_headers")
-    def test_get_common_headers_with_auth(self, mock_get_ci_headers, http_client):
+    @patch("sfq.http_client.CIHeaders.get_addinfo_headers")
+    def test_get_common_headers_with_auth(self, mock_get_ci_headers, mock_get_addinfo_headers, http_client):
         """Test generating common headers with authentication."""
         mock_get_ci_headers.return_value = {}
+        mock_get_addinfo_headers.return_value = {}
         headers = http_client.get_common_headers(include_auth=True)
 
         expected_headers = {
@@ -140,9 +142,11 @@ class TestHTTPClient:
         assert headers == expected_headers
 
     @patch("sfq.http_client.CIHeaders.get_ci_headers")
-    def test_get_common_headers_without_auth(self, mock_get_ci_headers, http_client):
+    @patch("sfq.http_client.CIHeaders.get_addinfo_headers")
+    def test_get_common_headers_without_auth(self, mock_get_ci_headers, mock_get_addinfo_headers, http_client):
         """Test generating common headers without authentication."""
         mock_get_ci_headers.return_value = {}
+        mock_get_addinfo_headers.return_value = {}
         headers = http_client.get_common_headers(include_auth=False)
 
         expected_headers = {
@@ -156,9 +160,11 @@ class TestHTTPClient:
         assert "Authorization" not in headers
 
     @patch("sfq.http_client.CIHeaders.get_ci_headers")
-    def test_get_common_headers_recursive_call(self, mock_get_ci_headers, http_client):
+    @patch("sfq.http_client.CIHeaders.get_addinfo_headers")
+    def test_get_common_headers_recursive_call(self, mock_get_ci_headers, mock_get_addinfo_headers, http_client):
         """Test generating headers for recursive calls (token refresh)."""
         mock_get_ci_headers.return_value = {}
+        mock_get_addinfo_headers.return_value = {}
         headers = http_client.get_common_headers(include_auth=True, recursive_call=True)
 
         # Should not include auth headers for recursive calls

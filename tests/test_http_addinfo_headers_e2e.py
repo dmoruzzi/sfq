@@ -89,6 +89,8 @@ def test_sfq_addinfo_headers_with_values(sf_instance):
     
     # Set custom addinfo headers
     os.environ['SFQ_HEADERS'] = "custom_key:custom_value|test_header:test_value"
+    # Ensure headers are attached
+    os.environ['SFQ_ATTACH_CI'] = "true"
 
     now = datetime.now(timezone(timedelta(hours=-5))) - timedelta(seconds=20)
     now_iso = now.isoformat(timespec='milliseconds')
