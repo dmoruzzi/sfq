@@ -139,6 +139,7 @@ class TestHTTPClient:
             "Authorization": "Bearer test_token_123",
         }
 
+        # Ensure no additional headers are present
         assert headers == expected_headers
 
     @patch("sfq.http_client.CIHeaders.get_ci_headers")
@@ -156,6 +157,7 @@ class TestHTTPClient:
             "Content-Type": "application/json",
         }
 
+        # Ensure no additional headers are present
         assert headers == expected_headers
         assert "Authorization" not in headers
 

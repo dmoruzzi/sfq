@@ -128,4 +128,8 @@ def test_sfq_addinfo_headers_with_values(sf_instance):
         
         sleep(1)  # Brief delay, required for eventual consistency
 
+    # Clean up environment variables
+    os.environ.pop('SFQ_HEADERS', None)
+    os.environ.pop('SFQ_ATTACH_CI', None)
+
     assert assertions_ran
