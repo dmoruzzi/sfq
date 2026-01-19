@@ -123,3 +123,50 @@ def test_sfq_attach_ci_true(sf_instance):
         sleep(1)  # Brief delay, required for eventual consistency
 
     assert assertions_ran
+
+def test_ci_headers_org_repo_validation(sf_instance):
+    """
+    This test is an end-to-end evaluation of the 'SFQ_ATTACH_CI' with org/repo info
+    """
+    assertions_ran = False
+
+    test_key = "repository"
+    test_value_input = "dmoruzzi/sfq"
+    test_value_output = test_value_input.replace("/", "_")
+
+    os.environ["SFQ_HEADERS"] = f"{test_key}:{test_value_input}"
+
+    now = datetime.now(timezone(timedelta(hours=-5))) - timedelta(seconds=20)
+    now_iso = now.isoformat(timespec='milliseconds')
+
+    target_query = "SELECT Id FROM ApiEvent WHERE EventDate >= {} LIMIT 1".format(now_iso)
+    sf_instance.query(query=target_query)  # Make initial query to generate ApiEvent
+
+
+    start_time = datetime.now()
+    while (datetime.now() - start_time).total_seconds() < 30:
+        res = sf_instance.query("SELECT Query, Client, AdditionalInfo FROM ApiEvent WHERE EventDate >= {} LIMIT 200".format(now_iso))
+        
+        for row in res['records']:
+            client = row.get("Client", "")
+            query = row.get("Query", "")
+            additional_info = row.get("AdditionalInfo", "")
+
+            if client != 'sfq-ci-headers-e2e':
+                continue
+
+            if query != target_query:
+                continue
+
+            additional_info_dict = json.loads(additional_info)
+            assert additional_info_dict.get(test_key) == test_value_output
+
+            assertions_ran = True
+            break
+        
+        if assertions_ran:
+            break
+        
+        sleep(1)  # Brief delay, required for eventual consistency
+
+    assert assertions_ran

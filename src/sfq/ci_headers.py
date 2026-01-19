@@ -230,7 +230,8 @@ class CIHeaders:
                     value = value.strip()
                     if key and value:
                         header_name = f"x-sfdc-addinfo-{key}"
-                        headers[header_name] = value
+                        cleaned_value = CIHeaders._normalize_insert_value(value)
+                        headers[header_name] = cleaned_value
         except Exception as e:
             # If parsing fails, log and return empty headers
             logger = get_logger(__name__)
