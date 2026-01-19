@@ -2,7 +2,7 @@ import http.client
 import json
 import os
 from datetime import datetime, timedelta, timezone
-from time import sleep
+from time import sleep, time
 from urllib.parse import quote
 
 import pytest
@@ -131,8 +131,8 @@ def test_ci_headers_org_repo_validation(sf_instance):
     assertions_ran = False
 
     test_key = "repository"
-    test_value_input = "dmoruzzi/sfq"
-    test_value_output = test_value_input.replace("/", "_")
+    test_value_input = f"dmoruzzi/{time()}"
+    test_value_output = test_value_input.replace("/", "_").replace(".", "_")
 
     os.environ["SFQ_HEADERS"] = f"{test_key}:{test_value_input}"
 

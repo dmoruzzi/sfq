@@ -129,9 +129,9 @@ class TestCIHeaders:
             expected = {
                 "x-sfdc-addinfo-ci_provider": "github",
                 "x-sfdc-addinfo-run_id": "123456",
-                "x-sfdc-addinfo-repository": "org/repo",
+                "x-sfdc-addinfo-repository": "org_repo",  # / -> _
                 "x-sfdc-addinfo-workflow": "Release",
-                "x-sfdc-addinfo-ref": "refs/heads/main",
+                "x-sfdc-addinfo-ref": "refs_heads_main",  # / -> _
                 "x-sfdc-addinfo-runner_os": "Linux",
             }
             
@@ -195,7 +195,7 @@ class TestCIHeaders:
             expected = {
                 "x-sfdc-addinfo-ci_provider": "gitlab",
                 "x-sfdc-addinfo-pipeline_id": "789012",
-                "x-sfdc-addinfo-project_path": "org/project",
+                "x-sfdc-addinfo-project_path": "org_project",  # / -> _
                 "x-sfdc-addinfo-job_name": "deploy",
                 "x-sfdc-addinfo-commit_ref_name": "main",
                 "x-sfdc-addinfo-runner_id": "456",
@@ -427,3 +427,24 @@ class TestCIHeaders:
             assert headers["x-sfdc-addinfo-pii-actor"] == "username"  # [ and ] removed
             assert headers["x-sfdc-addinfo-pii-actor_id"] == "123_45"  # space -> underscore
             assert headers["x-sfdc-addinfo-pii-triggering_actor"] == "user_at_domain_com"  # @ -> _at_, . -> _
+
+    def test_get_ci_headers_normalization_with_special_characters(self):
+        """Test that non-PII CI headers with special characters are properly normalized."""
+        env = {
+            "GITHUB_ACTIONS": "true",
+            "GITHUB_RUN_ID": "123456",
+            "GITHUB_REPOSITORY": "owner/repo-name",  # Contains / and -
+            "GITHUB_WORKFLOW": "Test Workflow",     # Contains space
+            "GITHUB_REF": "refs/heads/feature-branch",  # Contains / and -
+            "RUNNER_OS": "Linux",
+        }
+        
+        with patch.dict(os.environ, env, clear=True):
+            headers = CIHeaders.get_ci_headers()
+            
+            # Verify normalization of special characters
+            assert headers["x-sfdc-addinfo-repository"] == "owner_repo-name"  # / -> _
+            assert headers["x-sfdc-addinfo-workflow"] == "Test_Workflow"      # space -> _
+            assert headers["x-sfdc-addinfo-ref"] == "refs_heads_feature-branch"  # / -> _
+            assert headers["x-sfdc-addinfo-run_id"] == "123456"  # No special chars, unchanged
+            assert headers["x-sfdc-addinfo-runner_os"] == "Linux"  # No special chars, unchanged

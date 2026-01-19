@@ -166,11 +166,12 @@ class CIHeaders:
         # Always include the CI provider header
         headers[CIHeaders._get_header_name("ci_provider")] = provider
 
-        # Add non-PII headers (no sanitization)
+        # Add non-PII headers (with sanitization for consistency)
         for env_var, field_name in config["non_pii_vars"].items():
             value = os.environ.get(env_var)
             if value:
-                headers[CIHeaders._get_header_name(field_name)] = value
+                cleaned_value = CIHeaders._normalize_insert_value(value)
+                headers[CIHeaders._get_header_name(field_name)] = cleaned_value
 
         # Add PII headers if opted in (with sanitization)
         if CIHeaders._should_include_pii():

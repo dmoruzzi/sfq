@@ -341,9 +341,9 @@ All CI metadata uses the `x-sfdc-addinfo-` prefix:
 ```
 x-sfdc-addinfo-ci_provider: github
 x-sfdc-addinfo-run_id: 123456
-x-sfdc-addinfo-repository: org/repo
+x-sfdc-addinfo-repository: org_repo
 x-sfdc-addinfo-workflow: Release
-x-sfdc-addinfo-ref: refs/heads/main
+x-sfdc-addinfo-ref: refs_heads_main
 x-sfdc-addinfo-runner_os: Linux
 ```
 

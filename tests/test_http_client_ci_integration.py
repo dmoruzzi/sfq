@@ -68,9 +68,9 @@ class TestHTTPClientCIIntegration:
             # Verify CI headers
             assert headers["x-sfdc-addinfo-ci_provider"] == "github"
             assert headers["x-sfdc-addinfo-run_id"] == "123456"
-            assert headers["x-sfdc-addinfo-repository"] == "org/repo"
+            assert headers["x-sfdc-addinfo-repository"] == "org_repo"  # / -> _
             assert headers["x-sfdc-addinfo-workflow"] == "Release"
-            assert headers["x-sfdc-addinfo-ref"] == "refs/heads/main"
+            assert headers["x-sfdc-addinfo-ref"] == "refs_heads_main"  # / -> _
             assert headers["x-sfdc-addinfo-runner_os"] == "Linux"
 
     def test_get_common_headers_in_gitlab_ci(self, http_client):
@@ -225,7 +225,7 @@ class TestHTTPClientCIIntegration:
             # Verify CI headers are included
             assert headers["x-sfdc-addinfo-ci_provider"] == "github"
             assert headers["x-sfdc-addinfo-run_id"] == "123456"
-            assert headers["x-sfdc-addinfo-repository"] == "org/repo"
+            assert headers["x-sfdc-addinfo-repository"] == "org_repo"  # / -> _
             
             # Verify standard headers
             assert headers["Authorization"] == "Bearer test_token_123"
@@ -314,7 +314,7 @@ class TestHTTPClientCIIntegration:
             # Verify specific values
             assert headers["x-sfdc-addinfo-ci_provider"] == "github"
             assert headers["x-sfdc-addinfo-run_id"] == "123456"
-            assert headers["x-sfdc-addinfo-repository"] == "org/repo"
+            assert headers["x-sfdc-addinfo-repository"] == "org_repo"  # / -> _
             assert headers["x-sfdc-addinfo-workflow"] == "Test"
             assert headers["x-sfdc-addinfo-pii-actor"] == "testuser"
 
@@ -387,7 +387,7 @@ class TestHTTPClientCIIntegration:
             # Should have CI headers by default
             assert headers["x-sfdc-addinfo-ci_provider"] == "github"
             assert headers["x-sfdc-addinfo-run_id"] == "123456"
-            assert headers["x-sfdc-addinfo-repository"] == "org/repo"
+            assert headers["x-sfdc-addinfo-repository"] == "org_repo"  # / -> _
 
     @patch("sfq.http_client.HTTPClient.send_request")
     def test_send_authenticated_request_sfq_attach_ci_false(self, mock_send_request, http_client):
