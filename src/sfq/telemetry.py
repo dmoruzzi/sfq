@@ -7,9 +7,16 @@ Provides opt-in HTTP event telemetry with explicit levels:
 - 2: Debug (diagnostics; explicit opt-in)
 
 Env vars used:
-- `SFQ_TELEMETRY` : 0|1|2
-- `SFQ_TELEMETRY_ENDPOINT` : URL to POST telemetry
+- `SFQ_TELEMETRY` : 0|1|2 (telemetry level)
 - `SFQ_TELEMETRY_SAMPLING` : float 0.0-1.0 sampling fraction
+- `SFQ_GRAFANACLOUD_URL` : URL to fetch Grafana Cloud credentials JSON (default: https://sfq.dmoruzzi.com/creds.json)
+
+Grafana Cloud credentials JSON format:
+{
+  "URL": "https://logs-prod-001.grafana.net/loki/api/v1/push",
+  "USER_ID": 1234567,
+  "API_KEY": "glc_eyJvIjoiMTIzNDU2NyIsIm4iOiJzdGFjay0xMjM0NTY3LWludGVncmF0aW9uLXNmcSIsImsiOiIxMjM0NTY3ODkwMTIzNDU2Nzg5MTIzNDUiLCJtIjp7InIiOiJwcm9kLXVzLWVhc3QtMCJ9fQ=="
+}
 """
 from __future__ import annotations
 
@@ -23,6 +30,7 @@ import uuid
 import random
 import platform
 import re
+import base64
 from typing import Any, Dict, Optional
 from urllib.parse import urlparse
 import http.client
@@ -53,15 +61,12 @@ try:
 except Exception:
     _SDK_VERSION = "0.0.47"
 
-DEFAULT_ENDPOINT = os.getenv(
-    "SFQ_TELEMETRY_ENDPOINT", "https://sfq-telemetry.moruzzi.org/api/v0/events"
-)
-
 class TelemetryConfig:
     def __init__(self) -> None:
+        # Telemetry level (0=disabled, 1=standard, 2=debug)
         raw = os.getenv("SFQ_TELEMETRY")
         try:
-            self.level = int(raw) if raw is not None else 0
+            self.level = int(raw) if raw is not None else 1
         except Exception:
             self.level = 0
 
@@ -70,8 +75,58 @@ class TelemetryConfig:
         except Exception:
             self.sampling = 1.0
 
-        self.endpoint = os.getenv("SFQ_TELEMETRY_ENDPOINT", DEFAULT_ENDPOINT)
-        self.api_key = os.getenv("SFQ_TELEMETRY_KEY", "PUBLIC")
+        # Grafana Cloud credentials URL
+        creds_url = os.getenv("SFQ_GRAFANACLOUD_URL", "https://sfq-telemetry.moruzzi.net/creds.json")
+        
+        # Fetch credentials from JSON endpoint
+        self.grafana_creds = self._fetch_grafana_credentials(creds_url)
+        self.endpoint = self.grafana_creds.get("URL", "https://logs-prod-001.grafana.net/loki/api/v1/push")
+        self.user_id = str(self.grafana_creds.get("USER_ID"))
+        self.api_key = str(self.grafana_creds.get("API_KEY"))
+        
+        # Validate credentials - fail fast if invalid
+        if not all([self.user_id, self.api_key]):
+            raise ValueError(
+                "Grafana Cloud credentials not found or invalid. "
+                "Ensure SFQ_GRAFANACLOUD_URL points to a valid credentials JSON endpoint. "
+                "Expected format: {\"URL\": \"...\", \"USER_ID\": \"...\", \"API_KEY\": \"...\"}"
+            )
+
+    def _fetch_grafana_credentials(self, url: str) -> Dict[str, Any]:
+        """Fetch credentials from JSON endpoint using http.client"""
+        try:
+            parsed = urlparse(url)
+            if parsed.scheme == "https":
+                conn = http.client.HTTPSConnection(parsed.hostname, parsed.port or 443, timeout=5)
+            else:
+                conn = http.client.HTTPConnection(parsed.hostname, parsed.port or 80, timeout=5)
+            conn.request("GET", parsed.path or "/")
+            response = conn.getresponse()
+             
+            if response.status != 200:
+                raise RuntimeError(
+                    f"Failed to fetch Grafana credentials from {url}: HTTP {response.status}. "
+                    "Please verify the credentials endpoint is accessible and returning valid JSON."
+                )
+             
+            try:
+                data = json.loads(response.read().decode('utf-8'))
+                if not isinstance(data, dict):
+                    raise ValueError("Credentials JSON must be an object/dict")
+                return data
+            except json.JSONDecodeError as e:
+                raise RuntimeError(
+                    f"Invalid JSON response from credentials endpoint {url}: {str(e)}. "
+                    "Expected format: {\"URL\": \"...\", \"USER_ID\": \"...\", \"API_KEY\": \"...\"}"
+                )
+            finally:
+                conn.close()
+                 
+        except Exception as e:
+            raise RuntimeError(
+                f"Failed to fetch Grafana credentials from {url}: {str(e)}. "
+                "Please check your network connection and credentials endpoint configuration."
+            )
 
     def enabled(self) -> bool:
         return bool(self.level and self.level in (1, 2))
@@ -89,6 +144,31 @@ def get_config() -> TelemetryConfig:
     return _config
 
 
+def _build_grafana_payload(event_type: str, ctx: Dict[str, Any], level: int) -> Dict[str, Any]:
+    """Build payload in Grafana Loki format with streams array"""
+    # Build the original payload structure
+    original_payload = _build_payload(event_type, ctx, level)
+    
+    # Build stream labels for Grafana Loki
+    stream = {
+        "Language": "Python",
+        "source": "Code",
+        "sdk": "sfq",
+        "sdk_version": _SDK_VERSION,
+        "service_name": "sfq",
+        "telemetry_level": str(level),
+        "client_id": _client_id
+    }
+    
+    # Convert to Grafana Loki format with nanosecond timestamp
+    return {
+        "streams": [{
+            "stream": stream,
+            "values": [[str(time.time_ns()), json.dumps(original_payload)]]
+        }]
+    }
+
+
 def _build_payload(event_type: str, ctx: Dict[str, Any], level: int) -> Dict[str, Any]:
     base = {
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -97,6 +177,9 @@ def _build_payload(event_type: str, ctx: Dict[str, Any], level: int) -> Dict[str
         "event_type": event_type,
         "client_id": _client_id,
         "telemetry_level": level,
+        "trace_id": ctx.get("trace_id") or str(uuid.uuid4()),
+        "span": ctx.get("span") or "default",
+        "log_level": "DEBUG" if level == 2 else "INFO",
     }
 
     # Standard payload: safe, minimal, no PII
@@ -319,9 +402,10 @@ def _maybe_register_log_handler() -> None:
 
 
 class _Sender(threading.Thread):
-    def __init__(self, endpoint: str, api_key: Optional[str]) -> None:
+    def __init__(self, endpoint: str, user_id: str, api_key: str) -> None:
         super().__init__(daemon=True)
         self.endpoint = endpoint
+        self.user_id = user_id
         self.api_key = api_key
         self._q: "queue.Queue[Dict[str, Any]]" = queue.Queue(maxsize=500)
         self._stop = threading.Event()
@@ -355,16 +439,20 @@ class _Sender(threading.Thread):
         parsed = urlparse(self.endpoint)
         conn = None
         body = json.dumps(event).encode("utf-8")
-        headers = {"Content-Type": "application/json"}
-        if self.api_key:
-            headers["X-API-Key"] = f"{self.api_key}"
-        else:
-            headers["X-API-Key"] = _SDK_VERSION
+        
+        # Grafana Cloud authentication using Basic Auth
+        auth_string = f"{self.user_id}:{self.api_key}"
+        auth_header = f"Basic {base64.b64encode(auth_string.encode()).decode()}"
+        
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": auth_header
+        }
 
         if parsed.scheme == "https":
-            conn = http.client.HTTPSConnection(parsed.hostname, parsed.port or 443, timeout=5)
+            conn = http.client.HTTPSConnection(parsed.hostname or "", parsed.port or 443, timeout=5)
         else:
-            conn = http.client.HTTPConnection(parsed.hostname, parsed.port or 80, timeout=5)
+            conn = http.client.HTTPConnection(parsed.hostname or "", parsed.port or 80, timeout=5)
 
         path = parsed.path or "/"
         if parsed.query:
@@ -389,7 +477,7 @@ _sender: Optional[_Sender] = None
 def _ensure_sender() -> _Sender:
     global _sender
     if _sender is None:
-        _sender = _Sender(_config.endpoint, _config.api_key)
+        _sender = _Sender(_config.endpoint, _config.user_id, _config.api_key)
         _sender.start()
     # register log handler if requested (best-effort)
     try:
@@ -410,7 +498,7 @@ def emit(event_type: str, ctx: Dict[str, Any]) -> None:
 
     # safety: ensure integer level
     level = int(cfg.level)
-    payload = _build_payload(event_type, ctx, level)
+    payload = _build_grafana_payload(event_type, ctx, level)
 
     sender = _ensure_sender()
     sender.enqueue(payload)
