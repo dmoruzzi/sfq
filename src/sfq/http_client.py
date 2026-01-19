@@ -33,7 +33,7 @@ class HTTPClient:
     def __init__(
         self,
         auth_manager: AuthManager,
-        user_agent: str = "sfq/0.0.50",
+        user_agent: str = "sfq/0.0.51",
         sforce_client: str = "_auto",
         high_api_usage_threshold: int = 80,
     ) -> None:
