@@ -247,7 +247,7 @@ def _build_datadog_payload(event_type: str, ctx: Dict[str, Any], level: int) -> 
         "ddsource": ddsource,
         "service": service,
         "hostname": hostname,
-        "message": json.dumps(original_payload),
+        "message": original_payload,
         "ddtags": ddtags
     }
 

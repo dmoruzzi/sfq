@@ -126,8 +126,9 @@ def test_datadog_payload_format():
             assert payload["hostname"] == "00D123456789ABCDEF", f"Expected org_id, got {payload['hostname']}"
             assert payload["ddtags"] == "source:salesforce", f"Expected source:salesforce, got {payload['ddtags']}"
             
-            # Verify message is JSON string
-            message = json.loads(payload["message"])
+            # Verify message is an object (not JSON string)
+            message = payload["message"]
+            assert isinstance(message, dict), f"Message should be a dict/object, got {type(message)}"
             assert "event_type" in message, "Message should contain event_type"
             assert message["event_type"] == "test.event", "Event type should be preserved"
             

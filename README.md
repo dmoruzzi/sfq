@@ -349,7 +349,28 @@ When telemetry is sent to DataDog, it uses the DataDog logs format:
     "ddsource": "salesforce",
     "service": "salesforce",
     "hostname": "https://example.my.salesforce.com",
-    "message": "{\"timestamp\": \"2026-01-19T09:21:05Z\", \"sdk\": \"sfq\", \"sdk_version\": \"0.0.53\", \"event_type\": \"http.request\", \"client_id\": \"c86f259c69db106c1a28d28751196036ae884bcf93e8282657bd4228e06e5897\", \"telemetry_level\": 1, \"trace_id\": \"5d280fca-bb04-45a9-8d1b-929c6d33edfa\", \"span\": \"default\", \"log_level\": \"INFO\", \"payload\": {\"method\": \"GET\", \"status_code\": 200, \"duration_ms\": 174, \"environment\": {\"os\": \"Windows\", \"os_release\": \"11\", \"python_version\": \"3.14.2\", \"sforce_client\": \"sfq/0.0.53\"}}}",
+    "message": {
+      "timestamp": "2026-01-19T09:21:05Z",
+      "sdk": "sfq",
+      "sdk_version": "0.0.53",
+      "event_type": "http.request",
+      "client_id": "c86f259c69db106c1a28d28751196036ae884bcf93e8282657bd4228e06e5897",
+      "telemetry_level": 1,
+      "trace_id": "5d280fca-bb04-45a9-8d1b-929c6d33edfa",
+      "span": "default",
+      "log_level": "INFO",
+      "payload": {
+        "method": "GET",
+        "status_code": 200,
+        "duration_ms": 174,
+        "environment": {
+          "os": "Windows",
+          "os_release": "11",
+          "python_version": "3.14.2",
+          "sforce_client": "sfq/0.0.53"
+        }
+      }
+    },
     "ddtags": "source:salesforce"
 }
 ```
