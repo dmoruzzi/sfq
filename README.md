@@ -211,7 +211,11 @@ To use the `sfq` library, you'll need a **client ID** and **refresh token**. The
 | `SFQ_TELEMETRY_ENDPOINT`     | URL to POST telemetry events                                    | Grafana Cloud Loki endpoint                       |
 | `SFQ_TELEMETRY_SAMPLING`     | Fraction of events to send (`0.0`–`1.0`)                        | `1.0`                                             |
 | `SFQ_TELEMETRY_KEY`          | Optional bearer token for the telemetry endpoint                | None                                              |
-| `SFQ_GRAFANACLOUD_URL`       | URL to fetch Grafana Cloud credentials JSON, or base64 encoded credentials JSON | Public credentials endpoint                       |
+| `SFQ_GRAFANACLOUD_URL`       | URL to fetch credentials JSON, or base64 encoded credentials JSON | Public credentials endpoint                       |
+| `DD_API_KEY`                 | Override DataDog API key (for security)                         | None (uses credentials file)                      |
+| `DD_SOURCE`                  | Override DataDog source field                                   | `"salesforce"`                                   |
+| `DD_SERVICE`                 | Override DataDog service field                                  | `"salesforce"`                                   |
+| `DD_TAGS`                    | Override DataDog tags (comma-separated key:value pairs)        | `"source:salesforce"`                            |
 
 ### Telemetry Levels
 
@@ -233,7 +237,9 @@ The enhanced telemetry system supports multiple destinations:
 
 1. **Grafana Cloud Loki** (default): Standard and Debug telemetry is sent to Grafana Cloud for visualization and analysis.
 
-2. **Salesforce Telemetry Endpoint**: When available, telemetry can also be sent directly to Salesforce endpoints using the active session's access token.
+2. **DataDog Logs**: Telemetry can be sent to DataDog logs endpoint for monitoring and analysis.
+
+3. **Salesforce Telemetry Endpoint**: When available, telemetry can also be sent directly to Salesforce endpoints using the active session's access token.
 
 ### Privacy & Security
 
@@ -261,10 +267,41 @@ export SFQ_TELEMETRY_ENDPOINT=https://your-internal-telemetry-endpoint.com
 export SFQ_GRAFANACLOUD_URL=https://your-grafana-credentials-endpoint.com/creds.json
 ```
 
+**DataDog Logs Configuration:**
+To use DataDog as your telemetry destination, provide DataDog credentials JSON:
+```bash
+export SFQ_GRAFANACLOUD_URL=https://your-datadog-credentials-endpoint.com/creds.json
+```
+
+With DataDog credentials JSON format:
+```json
+{
+  "URL": "https://http-intake.logs.us3.datadoghq.com/api/v2/logs",
+  "DD_API_KEY": "your_datadog_api_key_here",
+  "PROVIDER": "DATADOG"
+}
+```
+
+**DataDog Environment Variable Overrides:**
+```bash
+# Override DataDog API key (recommended for security)
+export DD_API_KEY="your_production_datadog_api_key"
+
+# Customize DataDog fields
+export DD_SOURCE="custom_app_name"
+export DD_SERVICE="api_service"
+export DD_TAGS="env:production,team:backend,region:us-east"
+```
+
 **Base64 encoded credentials:**
 Instead of providing a URL, you can also provide base64 encoded credentials JSON:
 ```bash
 export SFQ_GRAFANACLOUD_URL="$(echo '{"URL": "https://your-loki-endpoint.com/loki/api/v1/push", "USER_ID": "1234567", "API_KEY": "your-api-key-here"}' | base64 -w 0)"
+```
+
+For DataDog base64 credentials:
+```bash
+export SFQ_GRAFANACLOUD_URL="$(echo '{"URL": "https://http-intake.logs.us3.datadoghq.com/api/v2/logs", "DD_API_KEY": "your_api_key", "PROVIDER": "DATADOG"}' | base64 -w 0)"
 ```
 
 **Reduce telemetry volume (sample 10% of events):**
@@ -303,6 +340,19 @@ This includes anonymized, non-PII fields (method, status code, duration). Intend
         }
     }
 }```
+
+**DataDog Logs Format:**
+When telemetry is sent to DataDog, it uses the DataDog logs format:
+
+```json
+{
+    "ddsource": "salesforce",
+    "service": "salesforce",
+    "hostname": "https://example.my.salesforce.com",
+    "message": "{\"timestamp\": \"2026-01-19T09:21:05Z\", \"sdk\": \"sfq\", \"sdk_version\": \"0.0.53\", \"event_type\": \"http.request\", \"client_id\": \"c86f259c69db106c1a28d28751196036ae884bcf93e8282657bd4228e06e5897\", \"telemetry_level\": 1, \"trace_id\": \"5d280fca-bb04-45a9-8d1b-929c6d33edfa\", \"span\": \"default\", \"log_level\": \"INFO\", \"payload\": {\"method\": \"GET\", \"status_code\": 200, \"duration_ms\": 174, \"environment\": {\"os\": \"Windows\", \"os_release\": \"11\", \"python_version\": \"3.14.2\", \"sforce_client\": \"sfq/0.0.53\"}}}",
+    "ddtags": "source:salesforce"
+}
+```
 
 **Salesforce Telemetry Event:**
 When telemetry is sent to Salesforce endpoints, it includes Salesforce-specific fields.
@@ -465,6 +515,16 @@ The following fields appear in telemetry events; below are concise explanations 
 - `payload.request_headers` (Debug/Full telemetry): Request headers with sensitive information redacted.
 - `payload.response_headers` (Debug/Full telemetry): Response headers with sensitive information redacted.
 - `payload.response_body` (Full telemetry only): Complete response body with sensitive information redacted.
+
+### DataDog-Specific Fields
+
+When using DataDog as the telemetry destination, the following fields are included:
+
+- `ddsource`: Source of the log (default: "salesforce", configurable via `DD_SOURCE` environment variable)
+- `service`: Service name (default: "salesforce", configurable via `DD_SERVICE` environment variable)
+- `hostname`: Hostname or identifier (uses Salesforce `instance_url` for debug levels, `org_id` for standard level)
+- `message`: JSON string containing the complete telemetry event payload
+- `ddtags`: Comma-separated key:value tags (default: "source:salesforce", configurable via `DD_TAGS` environment variable)
 
 ### Grafana Cloud Format
 

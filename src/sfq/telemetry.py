@@ -10,14 +10,29 @@ Provides opt-in HTTP event telemetry with explicit levels:
 Env vars used:
 - `SFQ_TELEMETRY` : 0|1|2 (telemetry level)
 - `SFQ_TELEMETRY_SAMPLING` : float 0.0-1.0 sampling fraction
-- `SFQ_GRAFANACLOUD_URL` : URL to fetch Grafana Cloud credentials JSON, or base64 encoded credentials JSON
+- `SFQ_GRAFANACLOUD_URL` : URL to fetch credentials JSON, or base64 encoded credentials JSON
+- `DD_API_KEY` : Override DataDog API key (optional, for security)
+- `DD_SOURCE` : Override DataDog source field (default: "salesforce")
+- `DD_SERVICE` : Override DataDog service field (default: "salesforce")
+- `DD_TAGS` : Override DataDog tags (default: "source:salesforce")
 
-Grafana Cloud credentials JSON format:
+Supported Providers:
+1. Grafana Cloud (default) - credentials JSON format:
 {
   "URL": "https://logs-prod-001.grafana.net/loki/api/v1/push",
   "USER_ID": 1234567,
   "API_KEY": "glc_eyJvIjoiMTIzNDU2NyIsIm4iOiJzdGFjay0xMjM0NTY3LWludGVncmF0aW9uLXNmcSIsImsiOiIxMjM0NTY3ODkwMTIzNDU2Nzg5MTIzNDUiLCJtIjp7InIiOiJwcm9kLXVzLWVhc3QtMCJ9fQ=="
 }
+
+2. DataDog - credentials JSON format:
+{
+  "URL": "https://http-intake.logs.us3.datadoghq.com/api/v2/logs",
+  "DD_API_KEY": "your_datadog_api_key",
+  "PROVIDER": "DATADOG"
+}
+
+Provider detection: If credentials JSON contains "PROVIDER": "DATADOG", DataDog is used.
+Otherwise, defaults to Grafana Cloud for backward compatibility.
 
 Alternatively, you can provide base64 encoded credentials JSON instead of a URL.
 """
@@ -86,17 +101,54 @@ class TelemetryConfig:
         
         # Fetch credentials from JSON endpoint
         self.grafana_creds = self._fetch_grafana_credentials(creds_url)
-        self.endpoint = self.grafana_creds.get("URL", "https://logs-prod-001.grafana.net/loki/api/v1/push")
-        self.user_id = str(self.grafana_creds.get("USER_ID"))
-        self.api_key = str(self.grafana_creds.get("API_KEY"))
         
-        # Validate credentials - fail fast if invalid
-        if not all([self.user_id, self.api_key]):
-            raise ValueError(
-                "Grafana Cloud credentials not found or invalid. "
-                "Ensure SFQ_GRAFANACLOUD_URL points to a valid credentials JSON endpoint. "
-                "Expected format: {\"URL\": \"...\", \"USER_ID\": \"...\", \"API_KEY\": \"...\"}"
-            )
+        # Detect provider and load provider-specific credentials
+        self.provider = self._detect_provider(self.grafana_creds)
+        self._load_provider_credentials(self.grafana_creds)
+        
+        # Set endpoint (common for both providers)
+        self.endpoint = self.grafana_creds.get("URL", "https://logs-prod-001.grafana.net/loki/api/v1/push")
+    
+    def _detect_provider(self, creds: Dict[str, Any]) -> str:
+        """Detect telemetry provider from credentials"""
+        provider = creds.get("PROVIDER", "GRAFANA")
+        return provider.upper() if provider else "GRAFANA"
+    
+    def _load_provider_credentials(self, creds: Dict[str, Any]) -> None:
+        """Load provider-specific credentials"""
+        if self.provider == "DATADOG":
+            # DataDog credentials
+            self.dd_api_key = creds.get("DD_API_KEY", "")
+            
+            # Apply environment variable override for API key
+            env_dd_key = os.getenv("DD_API_KEY")
+            if env_dd_key:
+                self.dd_api_key = env_dd_key
+            
+            # Validate DataDog credentials
+            if not self.dd_api_key:
+                raise ValueError(
+                    "DataDog credentials require DD_API_KEY. "
+                    "Ensure credentials JSON contains DD_API_KEY field or set DD_API_KEY environment variable."
+                )
+            
+            # For DataDog, we use dd_api_key as the main api_key for sender compatibility
+            self.user_id = None  # Not used for DataDog
+            self.api_key = self.dd_api_key
+            
+        else:
+            # Grafana Cloud credentials (existing logic)
+            self.user_id = str(creds.get("USER_ID"))
+            self.api_key = str(creds.get("API_KEY"))
+            self.dd_api_key = None  # Not used for Grafana
+            
+            # Validate Grafana credentials - fail fast if invalid
+            if not all([self.user_id, self.api_key]):
+                raise ValueError(
+                    "Grafana Cloud credentials not found or invalid. "
+                    "Ensure SFQ_GRAFANACLOUD_URL points to a valid credentials JSON endpoint. "
+                    "Expected format: {\"URL\": \"...\", \"USER_ID\": \"...\", \"API_KEY\": \"...\"}"
+                )
 
     def _fetch_grafana_credentials(self, url_or_b64: str) -> Dict[str, Any]:
         """Fetch credentials from JSON endpoint or decode base64 encoded credentials"""
@@ -179,6 +231,39 @@ _log_handler: Optional[logging.Handler] = None
 def get_config() -> TelemetryConfig:
     return _config
 
+
+def _build_datadog_payload(event_type: str, ctx: Dict[str, Any], level: int) -> Dict[str, Any]:
+    """Build payload in DataDog format"""
+    # Build the original payload structure
+    original_payload = _build_payload(event_type, ctx, level)
+    
+    # DataDog-specific fields with environment variable overrides
+    ddsource = os.getenv("DD_SOURCE", "salesforce")
+    service = os.getenv("DD_SERVICE", "salesforce")
+    ddtags = os.getenv("DD_TAGS", "source:salesforce")
+    hostname = _get_datadog_hostname(ctx, level)
+    
+    return {
+        "ddsource": ddsource,
+        "service": service,
+        "hostname": hostname,
+        "message": json.dumps(original_payload),
+        "ddtags": ddtags
+    }
+
+def _get_datadog_hostname(ctx: Dict[str, Any], level: int) -> str:
+    """Determine hostname based on telemetry level and Salesforce context"""
+    sf_context = ctx.get("sf", {})
+    
+    # Level 2 or -1: use instance_url for detailed debugging
+    if level in (2, -1) and sf_context.get("instance_url"):
+        return sf_context["instance_url"]
+    # Level 1: use org_id for standard telemetry
+    elif level == 1 and sf_context.get("org_id"):
+        return sf_context["org_id"]
+    
+    # Default: empty string
+    return ""
 
 def _build_grafana_payload(event_type: str, ctx: Dict[str, Any], level: int) -> Dict[str, Any]:
     """Build payload in Grafana Loki format with streams array"""
@@ -633,11 +718,12 @@ def _maybe_register_log_handler() -> None:
 
 
 class _Sender(threading.Thread):
-    def __init__(self, endpoint: str, user_id: str, api_key: str) -> None:
+    def __init__(self, endpoint: str, user_id: str, api_key: str, provider: str = "GRAFANA") -> None:
         super().__init__(daemon=True)
         self.endpoint = endpoint
         self.user_id = user_id
         self.api_key = api_key
+        self.provider = provider
         self._q: "queue.Queue[Dict[str, Any]]" = queue.Queue(maxsize=500)
         self._stop = threading.Event()
 
@@ -671,14 +757,22 @@ class _Sender(threading.Thread):
         conn = None
         body = json.dumps(event).encode("utf-8")
         
-        # Grafana Cloud authentication using Basic Auth
-        auth_string = f"{self.user_id}:{self.api_key}"
-        auth_header = f"Basic {base64.b64encode(auth_string.encode()).decode()}"
-        
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": auth_header
-        }
+        # Provider-specific authentication
+        if self.provider == "DATADOG":
+            # DataDog uses API key header
+            headers = {
+                "Content-Type": "application/json",
+                "DD-API-KEY": self.api_key
+            }
+        else:
+            # Grafana Cloud authentication using Basic Auth
+            auth_string = f"{self.user_id}:{self.api_key}"
+            auth_header = f"Basic {base64.b64encode(auth_string.encode()).decode()}"
+            
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": auth_header
+            }
 
         if parsed.scheme == "https":
             conn = http.client.HTTPSConnection(parsed.hostname or "", parsed.port or 443, timeout=5)
@@ -708,7 +802,7 @@ _sender: Optional[_Sender] = None
 def _ensure_sender() -> _Sender:
     global _sender
     if _sender is None:
-        _sender = _Sender(_config.endpoint, _config.user_id, _config.api_key)
+        _sender = _Sender(_config.endpoint, _config.user_id, _config.api_key, provider=_config.provider)
         _sender.start()
     # register log handler if requested (best-effort)
     try:
@@ -723,14 +817,19 @@ def emit(event_type: str, ctx: Dict[str, Any]) -> None:
     cfg = _config
     if not cfg.enabled():
         return
-
+    
     if random.random() > cfg.sampling:
         return
-
+    
     # safety: ensure integer level
     level = int(cfg.level)
-    payload = _build_grafana_payload(event_type, ctx, level)
-
+    
+    # Provider-specific payload building
+    if cfg.provider == "DATADOG":
+        payload = _build_datadog_payload(event_type, ctx, level)
+    else:
+        payload = _build_grafana_payload(event_type, ctx, level)
+    
     sender = _ensure_sender()
     sender.enqueue(payload)
 
