@@ -133,8 +133,9 @@ class TestDataDogPayloadBuilding:
                 assert payload["hostname"] == "00D123456789ABCDEF"
                 assert payload["ddtags"] == "source:salesforce"
                 
-                # Verify message is valid JSON
-                message = json.loads(payload["message"])
+                # Verify message is an object (not JSON string)
+                message = payload["message"]
+                assert isinstance(message, dict), f"Message should be a dict/object, got {type(message)}"
                 assert "event_type" in message
                 assert message["event_type"] == "test.event"
                 
