@@ -21,15 +21,15 @@
 
             <h2>Contents</h2>
             <ul>
-  <li><a href="#sfq-salesforce-query">sfq (Salesforce Query)</a>
+  <li><a href="#sfq">sfq</a>
   <ul>
-    <li><a href="#features">Features</a></li>
     <li><a href="#installation">Installation</a></li>
-    <li><a href="#usage">Usage</a></li>
-    <li><a href="#important-considerations">Important Considerations</a></li>
-    <li><a href="#telemetry">Telemetry</a></li>
-    <li><a href="#ci-aware-http-header-attachment">CI-Aware HTTP Header Attachment</a></li>
-    <li><a href="#custom-addinfo-headers">Custom Addinfo Headers</a></li>
+    <li><a href="#quick-start">Quick Start</a></li>
+    <li><a href="#getting-credentials">Getting Credentials</a></li>
+    <li><a href="#core-features">Core Features</a></li>
+    <li><a href="#advanced-guides">Advanced Guides</a></li>
+    <li><a href="#exception-handling">Exception Handling</a></li>
+    <li><a href="#requirements">Requirements</a></li>
   </ul></li>
 </ul>
 
@@ -251,873 +251,231 @@
                     <h1 class="modulename">
 sfq    </h1>
 
-                        <div class="docstring"><h1 id="sfq-salesforce-query">sfq (Salesforce Query)</h1>
+                        <div class="docstring"><h1 id="sfq">sfq</h1>
 
-<p>sfq is a lightweight Python wrapper library designed to simplify querying Salesforce, reducing repetitive code for accessing Salesforce data.</p>
-
-<p>For more varied workflows, consider using an alternative like <a href="https://simple-salesforce.readthedocs.io/en/stable/">Simple Salesforce</a>. This library was even referenced on the <a href="https://developer.salesforce.com/blogs/2021/09/how-to-automate-data-extraction-from-salesforce-using-python">Salesforce Developers Blog</a>.</p>
-
-<h2 id="features">Features</h2>
-
-<ul>
-<li>Simplified query execution for Salesforce instances.</li>
-<li>Integration with Salesforce authentication via refresh tokens.</li>
-<li>Option to interact with Salesforce Tooling API for more advanced queries.</li>
-<li>Platform Events support (list available &amp; publish single/batch).</li>
-</ul>
+<p>A lightweight Python library for querying Salesforce with minimal boilerplate.</p>
 
 <h2 id="installation">Installation</h2>
-
-<p>You can install the <code><a href="">sfq</a></code> library using <code>pip</code>:</p>
 
 <div class="pdoc-code codehilite">
 <pre><span></span><code>pip<span class="w"> </span>install<span class="w"> </span>sfq
 </code></pre>
 </div>
 
-<h2 id="usage">Usage</h2>
-
-<h3 id="library-querying">Library Querying</h3>
+<h2 id="quick-start">Quick Start</h2>
 
 <div class="pdoc-code codehilite">
 <pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">sfq</span><span class="w"> </span><span class="kn">import</span> <span class="n">SFAuth</span>
 
-<span class="c1"># Initialize the SFAuth class with authentication details</span>
 <span class="n">sf</span> <span class="o">=</span> <span class="n">SFAuth</span><span class="p">(</span>
-    <span class="n">instance_url</span><span class="o">=</span><span class="s2">&quot;https://example-dev-ed.trailblaze.my.salesforce.com&quot;</span><span class="p">,</span>
-    <span class="n">client_id</span><span class="o">=</span><span class="s2">&quot;your-client-id-here&quot;</span><span class="p">,</span>
-    <span class="n">client_secret</span><span class="o">=</span><span class="s2">&quot;your-client-secret-here&quot;</span><span class="p">,</span>
-    <span class="n">refresh_token</span><span class="o">=</span><span class="s2">&quot;your-refresh-token-here&quot;</span>
+    <span class="n">instance_url</span><span class="o">=</span><span class="s2">&quot;https://your-org.my.salesforce.com&quot;</span><span class="p">,</span>
+    <span class="n">client_id</span><span class="o">=</span><span class="s2">&quot;PlatformCLI&quot;</span><span class="p">,</span>
+    <span class="n">client_secret</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span>
+    <span class="n">refresh_token</span><span class="o">=</span><span class="s2">&quot;your-refresh-token&quot;</span>
 <span class="p">)</span>
 
-<span class="c1"># Execute a query to fetch account records</span>
-<span class="nb">print</span><span class="p">(</span><span class="n">sf</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="s2">&quot;SELECT Id FROM Account LIMIT 5&quot;</span><span class="p">))</span>
-
-<span class="c1"># Execute a query to fetch Tooling API data</span>
-<span class="nb">print</span><span class="p">(</span><span class="n">sf</span><span class="o">.</span><span class="n">tooling_query</span><span class="p">(</span><span class="s2">&quot;SELECT Id, FullName, Metadata FROM SandboxSettings LIMIT 5&quot;</span><span class="p">))</span>
+<span class="c1"># Query records</span>
+<span class="n">result</span> <span class="o">=</span> <span class="n">sf</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="s2">&quot;SELECT Id, Name FROM Account LIMIT 5&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">&quot;records&quot;</span><span class="p">])</span>
 </code></pre>
 </div>
 
-<h3 id="composite-batch-queries">Composite Batch Queries</h3>
+<h2 id="getting-credentials">Getting Credentials</h2>
+
+<p>Use the Salesforce CLI to obtain authentication tokens:</p>
 
 <div class="pdoc-code codehilite">
-<pre><span></span><code><span class="n">multiple_queries</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s2">&quot;Recent Users&quot;</span><span class="p">:</span> <span class="s2">&quot;&quot;&quot;</span>
-<span class="s2">        SELECT Id, Name,CreatedDate</span>
-<span class="s2">        FROM User</span>
-<span class="s2">        ORDER BY CreatedDate DESC</span>
-<span class="s2">        LIMIT 10&quot;&quot;&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;Recent Accounts&quot;</span><span class="p">:</span> <span class="s2">&quot;SELECT Id, Name, CreatedDate FROM Account ORDER BY CreatedDate DESC LIMIT 10&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;Frozen Users&quot;</span><span class="p">:</span> <span class="s2">&quot;SELECT Id, UserId FROM UserLogin WHERE IsFrozen = true&quot;</span><span class="p">,</span>  <span class="c1"># If exceeds 2000 records, will paginate</span>
+<pre><span></span><code><span class="c1"># Login to your org</span>
+sf<span class="w"> </span>org<span class="w"> </span>login<span class="w"> </span>web<span class="w"> </span>--alias<span class="w"> </span>myorg<span class="w"> </span>--instance-url<span class="w"> </span>https://your-org.my.salesforce.com
+
+<span class="c1"># Display credentials</span>
+sf<span class="w"> </span>org<span class="w"> </span>display<span class="w"> </span>--target-org<span class="w"> </span>myorg<span class="w"> </span>--verbose<span class="w"> </span>--json
+</code></pre>
+</div>
+
+<p>From the output, extract values from the <code>sfdxAuthUrl</code> field:</p>
+
+<pre><code>force://&lt;client_id&gt;:&lt;client_secret&gt;:&lt;refresh_token&gt;@&lt;instance_url&gt;
+</code></pre>
+
+<h2 id="core-features">Core Features</h2>
+
+<h3 id="querying">Querying</h3>
+
+<p><strong>Single Query</strong></p>
+
+<div class="pdoc-code codehilite">
+<pre><span></span><code><span class="n">result</span> <span class="o">=</span> <span class="n">sf</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="s2">&quot;SELECT Id, Name FROM Account LIMIT 10&quot;</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">record</span> <span class="ow">in</span> <span class="n">result</span><span class="p">[</span><span class="s2">&quot;records&quot;</span><span class="p">]:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">record</span><span class="p">[</span><span class="s2">&quot;Name&quot;</span><span class="p">])</span>
+</code></pre>
+</div>
+
+<p><strong>Tooling API Query</strong></p>
+
+<div class="pdoc-code codehilite">
+<pre><span></span><code><span class="n">result</span> <span class="o">=</span> <span class="n">sf</span><span class="o">.</span><span class="n">tooling_query</span><span class="p">(</span><span class="s2">&quot;SELECT Id, FullName FROM CustomObject&quot;</span><span class="p">)</span>
+</code></pre>
+</div>
+
+<p><strong>Batch Queries (cquery)</strong></p>
+
+<p>Execute multiple queries efficiently using the Composite API:</p>
+
+<div class="pdoc-code codehilite">
+<pre><span></span><code><span class="n">queries</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;accounts&quot;</span><span class="p">:</span> <span class="s2">&quot;SELECT Id, Name FROM Account LIMIT 5&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;contacts&quot;</span><span class="p">:</span> <span class="s2">&quot;SELECT Id, Name FROM Contact LIMIT 5&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;users&quot;</span><span class="p">:</span> <span class="s2">&quot;SELECT Id, Name FROM User LIMIT 5&quot;</span>
 <span class="p">}</span>
 
-<span class="n">batched_response</span> <span class="o">=</span> <span class="n">sf</span><span class="o">.</span><span class="n">cquery</span><span class="p">(</span><span class="n">multiple_queries</span><span class="p">)</span>
-
-<span class="k">for</span> <span class="n">subrequest_identifer</span><span class="p">,</span> <span class="n">subrequest_response</span> <span class="ow">in</span> <span class="n">batched_response</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;&quot;</span><span class="si">{</span><span class="n">subrequest_identifer</span><span class="si">}</span><span class="s1">&quot; returned </span><span class="si">{</span><span class="n">subrequest_response</span><span class="p">[</span><span class="s2">&quot;totalSize&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1"> records&#39;</span><span class="p">)</span>
-<span class="o">&gt;&gt;&gt;</span> <span class="s2">&quot;Recent Users&quot;</span> <span class="n">returned</span> <span class="mi">10</span> <span class="n">records</span>
-<span class="o">&gt;&gt;&gt;</span> <span class="s2">&quot;Recent Accounts&quot;</span> <span class="n">returned</span> <span class="mi">10</span> <span class="n">records</span>
-<span class="o">&gt;&gt;&gt;</span> <span class="s2">&quot;Frozen Users&quot;</span> <span class="n">returned</span> <span class="mi">4082</span> <span class="n">records</span>
+<span class="n">results</span> <span class="o">=</span> <span class="n">sf</span><span class="o">.</span><span class="n">cquery</span><span class="p">(</span><span class="n">queries</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">data</span> <span class="ow">in</span> <span class="n">results</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;totalSize&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> records&quot;</span><span class="p">)</span>
 </code></pre>
 </div>
 
-<h3 id="collection-deletions">Collection Deletions</h3>
+<h3 id="crud-operations">CRUD Operations</h3>
+
+<p><strong>Delete Records</strong></p>
 
 <div class="pdoc-code codehilite">
-<pre><span></span><code><span class="n">response</span> <span class="o">=</span> <span class="n">sf</span><span class="o">.</span><span class="n">cdelete</span><span class="p">([</span><span class="s1">&#39;07La0000000bYgj&#39;</span><span class="p">,</span> <span class="s1">&#39;07La0000000bYgk&#39;</span><span class="p">,</span> <span class="s1">&#39;07La0000000bYgl&#39;</span><span class="p">])</span>
-<span class="o">&gt;&gt;&gt;</span> <span class="p">[{</span><span class="s1">&#39;id&#39;</span><span class="p">:</span> <span class="s1">&#39;07La0000000bYgj&#39;</span><span class="p">,</span> <span class="s1">&#39;success&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;errors&#39;</span><span class="p">:</span> <span class="p">[]},</span> <span class="p">{</span><span class="s1">&#39;id&#39;</span><span class="p">:</span> <span class="s1">&#39;07La0000000bYgk&#39;</span><span class="p">,</span> <span class="s1">&#39;success&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;errors&#39;</span><span class="p">:</span> <span class="p">[]},</span> <span class="p">{</span><span class="s1">&#39;id&#39;</span><span class="p">:</span> <span class="s1">&#39;07La0000000bYgl&#39;</span><span class="p">,</span> <span class="s1">&#39;success&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;errors&#39;</span><span class="p">:</span> <span class="p">[]}]</span>
+<pre><span></span><code><span class="n">result</span> <span class="o">=</span> <span class="n">sf</span><span class="o">.</span><span class="n">cdelete</span><span class="p">([</span><span class="s2">&quot;001xx000003DGbYAAW&quot;</span><span class="p">,</span> <span class="s2">&quot;001xx000003DGbZAAW&quot;</span><span class="p">])</span>
+<span class="c1"># Returns: [{&#39;id&#39;: &#39;...&#39;, &#39;success&#39;: True, &#39;errors&#39;: []}, ...]</span>
 </code></pre>
 </div>
 
 <h3 id="static-resources">Static Resources</h3>
 
 <div class="pdoc-code codehilite">
-<pre><span></span><code><span class="n">page</span> <span class="o">=</span> <span class="n">sf</span><span class="o">.</span><span class="n">read_static_resource_id</span><span class="p">(</span><span class="s1">&#39;081aj000009jUMXAA2&#39;</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Initial resource: </span><span class="si">{</span><span class="n">page</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
-<span class="o">&gt;&gt;&gt;</span> <span class="n">Initial</span> <span class="n">resource</span><span class="p">:</span> <span class="o">&lt;</span><span class="n">h1</span><span class="o">&gt;</span><span class="n">It</span> <span class="n">works</span><span class="err">!</span><span class="o">&lt;/</span><span class="n">h1</span><span class="o">&gt;</span>
-<span class="n">sf</span><span class="o">.</span><span class="n">update_static_resource_name</span><span class="p">(</span><span class="s1">&#39;HelloWorld&#39;</span><span class="p">,</span> <span class="s1">&#39;&lt;h1&gt;Hello World&lt;/h1&gt;&#39;</span><span class="p">)</span>
-<span class="n">page</span> <span class="o">=</span> <span class="n">sf</span><span class="o">.</span><span class="n">read_static_resource_name</span><span class="p">(</span><span class="s1">&#39;HelloWorld&#39;</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Updated resource: </span><span class="si">{</span><span class="n">page</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
-<span class="o">&gt;&gt;&gt;</span> <span class="n">Updated</span> <span class="n">resource</span><span class="p">:</span> <span class="o">&lt;</span><span class="n">h1</span><span class="o">&gt;</span><span class="n">Hello</span> <span class="n">World</span><span class="o">&lt;/</span><span class="n">h1</span><span class="o">&gt;</span>
-<span class="n">sf</span><span class="o">.</span><span class="n">update_static_resource_id</span><span class="p">(</span><span class="s1">&#39;081aj000009jUMXAA2&#39;</span><span class="p">,</span> <span class="s1">&#39;&lt;h1&gt;It works!&lt;/h1&gt;&#39;</span><span class="p">)</span>
+<pre><span></span><code><span class="c1"># Read by name</span>
+<span class="n">content</span> <span class="o">=</span> <span class="n">sf</span><span class="o">.</span><span class="n">read_static_resource_name</span><span class="p">(</span><span class="s2">&quot;MyResource&quot;</span><span class="p">)</span>
+
+<span class="c1"># Read by ID</span>
+<span class="n">content</span> <span class="o">=</span> <span class="n">sf</span><span class="o">.</span><span class="n">read_static_resource_id</span><span class="p">(</span><span class="s2">&quot;081xx000003DGbYAAW&quot;</span><span class="p">)</span>
+
+<span class="c1"># Update by name</span>
+<span class="n">sf</span><span class="o">.</span><span class="n">update_static_resource_name</span><span class="p">(</span><span class="s2">&quot;MyResource&quot;</span><span class="p">,</span> <span class="s2">&quot;&lt;h1&gt;New Content&lt;/h1&gt;&quot;</span><span class="p">)</span>
+
+<span class="c1"># Update by ID</span>
+<span class="n">sf</span><span class="o">.</span><span class="n">update_static_resource_id</span><span class="p">(</span><span class="s2">&quot;081xx000003DGbYAAW&quot;</span><span class="p">,</span> <span class="s2">&quot;&lt;h1&gt;New Content&lt;/h1&gt;&quot;</span><span class="p">)</span>
+</code></pre>
+</div>
+
+<h3 id="platform-events">Platform Events</h3>
+
+<div class="pdoc-code codehilite">
+<pre><span></span><code><span class="c1"># List available events</span>
+<span class="n">events</span> <span class="o">=</span> <span class="n">sf</span><span class="o">.</span><span class="n">list_events</span><span class="p">()</span>
+
+<span class="c1"># Publish single event</span>
+<span class="n">result</span> <span class="o">=</span> <span class="n">sf</span><span class="o">.</span><span class="n">publish</span><span class="p">(</span><span class="s2">&quot;MyEvent__e&quot;</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;Message__c&quot;</span><span class="p">:</span> <span class="s2">&quot;Hello!&quot;</span><span class="p">})</span>
+
+<span class="c1"># Publish batch</span>
+<span class="n">results</span> <span class="o">=</span> <span class="n">sf</span><span class="o">.</span><span class="n">publish_batch</span><span class="p">(</span>
+    <span class="p">[{</span><span class="s2">&quot;Message__c&quot;</span><span class="p">:</span> <span class="s2">&quot;Event 1&quot;</span><span class="p">},</span> <span class="p">{</span><span class="s2">&quot;Message__c&quot;</span><span class="p">:</span> <span class="s2">&quot;Event 2&quot;</span><span class="p">}],</span>
+    <span class="s2">&quot;MyEvent__e&quot;</span>
+<span class="p">)</span>
 </code></pre>
 </div>
 
 <h3 id="sobject-key-prefixes">sObject Key Prefixes</h3>
 
 <div class="pdoc-code codehilite">
-<pre><span></span><code><span class="c1"># Key prefix via IDs</span>
-<span class="nb">print</span><span class="p">(</span><span class="n">sf</span><span class="o">.</span><span class="n">get_sobject_prefixes</span><span class="p">())</span>
-<span class="o">&gt;&gt;&gt;</span> <span class="p">{</span><span class="s1">&#39;0Pp&#39;</span><span class="p">:</span> <span class="s1">&#39;AIApplication&#39;</span><span class="p">,</span> <span class="s1">&#39;6S9&#39;</span><span class="p">:</span> <span class="s1">&#39;AIApplicationConfig&#39;</span><span class="p">,</span> <span class="s1">&#39;9qd&#39;</span><span class="p">:</span> <span class="s1">&#39;AIInsightAction&#39;</span><span class="p">,</span> <span class="s1">&#39;9bq&#39;</span><span class="p">:</span> <span class="s1">&#39;AIInsightFeedback&#39;</span><span class="p">,</span> <span class="s1">&#39;0T2&#39;</span><span class="p">:</span> <span class="s1">&#39;AIInsightReason&#39;</span><span class="p">,</span> <span class="s1">&#39;9qc&#39;</span><span class="p">:</span> <span class="s1">&#39;AIInsightValue&#39;</span><span class="p">,</span> <span class="o">...</span><span class="p">}</span>
+<pre><span></span><code><span class="c1"># Get prefix -&gt; object name mapping</span>
+<span class="n">prefixes</span> <span class="o">=</span> <span class="n">sf</span><span class="o">.</span><span class="n">get_sobject_prefixes</span><span class="p">()</span>
+<span class="c1"># {&#39;001&#39;: &#39;Account&#39;, &#39;003&#39;: &#39;Contact&#39;, &#39;005&#39;: &#39;User&#39;, ...}</span>
 
-<span class="c1"># Key prefix via names</span>
-<span class="nb">print</span><span class="p">(</span><span class="n">sf</span><span class="o">.</span><span class="n">get_sobject_prefixes</span><span class="p">(</span><span class="n">key_type</span><span class="o">=</span><span class="s2">&quot;name&quot;</span><span class="p">))</span>
-<span class="o">&gt;&gt;&gt;</span> <span class="p">{</span><span class="s1">&#39;AIApplication&#39;</span><span class="p">:</span> <span class="s1">&#39;0Pp&#39;</span><span class="p">,</span> <span class="s1">&#39;AIApplicationConfig&#39;</span><span class="p">:</span> <span class="s1">&#39;6S9&#39;</span><span class="p">,</span> <span class="s1">&#39;AIInsightAction&#39;</span><span class="p">:</span> <span class="s1">&#39;9qd&#39;</span><span class="p">,</span> <span class="s1">&#39;AIInsightFeedback&#39;</span><span class="p">:</span> <span class="s1">&#39;9bq&#39;</span><span class="p">,</span> <span class="s1">&#39;AIInsightReason&#39;</span><span class="p">:</span> <span class="s1">&#39;0T2&#39;</span><span class="p">,</span> <span class="s1">&#39;AIInsightValue&#39;</span><span class="p">:</span> <span class="s1">&#39;9qc&#39;</span><span class="p">,</span> <span class="o">...</span><span class="p">}</span>
+<span class="c1"># Get object name -&gt; prefix mapping</span>
+<span class="n">prefixes</span> <span class="o">=</span> <span class="n">sf</span><span class="o">.</span><span class="n">get_sobject_prefixes</span><span class="p">(</span><span class="n">key_type</span><span class="o">=</span><span class="s2">&quot;name&quot;</span><span class="p">)</span>
+<span class="c1"># {&#39;Account&#39;: &#39;001&#39;, &#39;Contact&#39;: &#39;003&#39;, &#39;User&#39;: &#39;005&#39;, ...}</span>
 </code></pre>
 </div>
 
-<h3 id="platform-events">Platform Events</h3>
-
-<p>Platform Events allow publishing and subscribing to real-time events. Requires a custom Platform Event (e.g., 'sfq__e' with fields like 'text__c').</p>
+<h3 id="limits-api">Limits API</h3>
 
 <div class="pdoc-code codehilite">
-<pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">sfq</span><span class="w"> </span><span class="kn">import</span> <span class="n">SFAuth</span>
-
-<span class="n">sf</span> <span class="o">=</span> <span class="n">SFAuth</span><span class="p">(</span>
-    <span class="n">instance_url</span><span class="o">=</span><span class="s2">&quot;https://example-dev-ed.trailblaze.my.salesforce.com&quot;</span><span class="p">,</span>
-    <span class="n">client_id</span><span class="o">=</span><span class="s2">&quot;your-client-id-here&quot;</span><span class="p">,</span>
-    <span class="n">client_secret</span><span class="o">=</span><span class="s2">&quot;your-client-secret-here&quot;</span><span class="p">,</span>
-    <span class="n">refresh_token</span><span class="o">=</span><span class="s2">&quot;your-refresh-token-here&quot;</span>
-<span class="p">)</span>
-
-<span class="c1"># List available events</span>
-<span class="n">events</span> <span class="o">=</span> <span class="n">sf</span><span class="o">.</span><span class="n">list_events</span><span class="p">()</span>
-<span class="nb">print</span><span class="p">(</span><span class="n">events</span><span class="p">)</span>  <span class="c1"># e.g., [&#39;sfq__e&#39;]</span>
-
-<span class="c1"># Publish single event</span>
-<span class="n">result</span> <span class="o">=</span> <span class="n">sf</span><span class="o">.</span><span class="n">publish</span><span class="p">(</span><span class="s1">&#39;sfq__e&#39;</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;text__c&#39;</span><span class="p">:</span> <span class="s1">&#39;Hello Event!&#39;</span><span class="p">})</span>
-<span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>  <span class="c1"># {&#39;success&#39;: True, &#39;id&#39;: &#39;2Ee...&#39;}</span>
-
-<span class="c1"># Publish batch</span>
-<span class="n">events_data</span> <span class="o">=</span> <span class="p">[</span>
-    <span class="p">{</span><span class="s1">&#39;text__c&#39;</span><span class="p">:</span> <span class="s1">&#39;Batch 1 message&#39;</span><span class="p">},</span>
-    <span class="p">{</span><span class="s1">&#39;text__c&#39;</span><span class="p">:</span> <span class="s1">&#39;Batch 2 message&#39;</span><span class="p">}</span>
-<span class="p">]</span>
-<span class="n">batch_result</span> <span class="o">=</span> <span class="n">sf</span><span class="o">.</span><span class="n">publish_batch</span><span class="p">(</span><span class="n">events_data</span><span class="p">,</span> <span class="s1">&#39;sfq__e&#39;</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="n">batch_result</span><span class="p">[</span><span class="s1">&#39;results&#39;</span><span class="p">])</span>  <span class="c1"># List of results</span>
-
-<span class="c1">## How to Obtain Salesforce Tokens</span>
-
-<span class="n">To</span> <span class="n">use</span> <span class="n">the</span> <span class="err">`</span><span class="n">sfq</span><span class="err">`</span> <span class="n">library</span><span class="p">,</span> <span class="n">you</span><span class="s1">&#39;ll need a **client ID** and **refresh token**. The easiest way to obtain these is by using the Salesforce CLI:</span>
-
-<span class="c1">### Steps to Get Tokens</span>
-
-<span class="mf">1.</span> <span class="o">**</span><span class="n">Install</span> <span class="n">the</span> <span class="n">Salesforce</span> <span class="n">CLI</span><span class="o">**</span><span class="p">:</span>  
-   <span class="n">Follow</span> <span class="n">the</span> <span class="n">instructions</span> <span class="n">on</span> <span class="n">the</span> <span class="p">[</span><span class="n">Salesforce</span> <span class="n">CLI</span> <span class="n">installation</span> <span class="n">page</span><span class="p">](</span><span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">developer</span><span class="o">.</span><span class="n">salesforce</span><span class="o">.</span><span class="n">com</span><span class="o">/</span><span class="n">tools</span><span class="o">/</span><span class="n">salesforcecli</span><span class="p">)</span><span class="o">.</span>
-
-<span class="mf">2.</span> <span class="o">**</span><span class="n">Authenticate</span> <span class="k">with</span> <span class="n">Salesforce</span><span class="o">**</span><span class="p">:</span>  
-   <span class="n">Login</span> <span class="n">to</span> <span class="n">your</span> <span class="n">Salesforce</span> <span class="n">org</span> <span class="n">using</span> <span class="n">the</span> <span class="n">following</span> <span class="n">command</span><span class="p">:</span>
-
-   <span class="err">```</span><span class="n">bash</span>
-   <span class="n">sf</span> <span class="n">org</span> <span class="n">login</span> <span class="n">web</span> <span class="o">--</span><span class="n">alias</span> <span class="nb">int</span> <span class="o">--</span><span class="n">instance</span><span class="o">-</span><span class="n">url</span> <span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">corpa</span><span class="o">--</span><span class="nb">int</span><span class="o">.</span><span class="n">sandbox</span><span class="o">.</span><span class="n">my</span><span class="o">.</span><span class="n">salesforce</span><span class="o">.</span><span class="n">com</span>
-  
+<pre><span></span><code><span class="n">limits</span> <span class="o">=</span> <span class="n">sf</span><span class="o">.</span><span class="n">limits</span><span class="p">()</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">limits</span><span class="p">[</span><span class="s2">&quot;DailyApiRequests&quot;</span><span class="p">])</span>  <span class="c1"># {&#39;Max&#39;: 5000, &#39;Remaining&#39;: 4950}</span>
 </code></pre>
 </div>
 
-<ol start="3">
-<li><p><strong>Display Org Details</strong>:<br />
-To get the client ID, client secret, refresh token, and instance URL, run:</p>
+<h3 id="open-frontdoor-url">Open Frontdoor URL</h3>
+
+<p>Open a browser session with valid authentication:</p>
 
 <div class="pdoc-code codehilite">
-<pre><span></span><code>sf<span class="w"> </span>org<span class="w"> </span>display<span class="w"> </span>--target-org<span class="w"> </span>int<span class="w"> </span>--verbose<span class="w"> </span>--json
+<pre><span></span><code><span class="n">sf</span><span class="o">.</span><span class="n">open_frontdoor</span><span class="p">()</span>
 </code></pre>
 </div>
 
-<p>The output will look like this:</p>
+<h3 id="mdapi-retrieve">MDAPI Retrieve</h3>
+
+<p>Retrieve metadata components:</p>
 
 <div class="pdoc-code codehilite">
-<pre><span></span><code><span class="p">{</span>
-<span class="w">  </span><span class="nt">&quot;status&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
-<span class="w">  </span><span class="nt">&quot;result&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;00Daa0000000000000&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;apiVersion&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;63.0&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;accessToken&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;00Daa0000000000000!evaU3fYZEWGUrqI5rMtaS8KYbHfeqA7YWzMgKToOB43Jk0kj7LtiWCbJaj4owPFQ7CqpXPAGX1RDCHblfW9t8cNOCNRFng3o&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;instanceUrl&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;https://example-dev-ed.trailblaze.my.salesforce.com&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;username&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;user@example.com&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;clientId&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;PlatformCLI&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;connectedStatus&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Connected&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;sfdxAuthUrl&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;force://PlatformCLI::nwAeSuiRqvRHrkbMmCKvLHasS0vRbh3Cf2RF41WZzmjtThnCwOuDvn9HObcUjKuTExJPqPegIwnLB5aH6GNWYhU@example-dev-ed.trailblaze.my.salesforce.com&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;alias&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;int&quot;</span>
-<span class="w">  </span><span class="p">}</span>
-<span class="p">}</span>
+<pre><span></span><code><span class="c1"># Retrieve by type</span>
+<span class="n">result</span> <span class="o">=</span> <span class="n">sf</span><span class="o">.</span><span class="n">mdapi_retrieve</span><span class="p">([</span><span class="s2">&quot;CustomObject&quot;</span><span class="p">,</span> <span class="s2">&quot;ApexClass&quot;</span><span class="p">])</span>
+
+<span class="c1"># Retrieve specific members</span>
+<span class="n">result</span> <span class="o">=</span> <span class="n">sf</span><span class="o">.</span><span class="n">mdapi_retrieve</span><span class="p">({</span>
+    <span class="s2">&quot;CustomObject&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;Account&quot;</span><span class="p">,</span> <span class="s2">&quot;Contact&quot;</span><span class="p">],</span>
+    <span class="s2">&quot;ApexClass&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;MyClass&quot;</span><span class="p">]</span>
+<span class="p">})</span>
 </code></pre>
-</div></li>
+</div>
 
-<li><p><strong>Extract and Use the Tokens</strong>:<br />
-The <code>sfdxAuthUrl</code> is structured as:</p>
-
-<pre><code>force://&lt;client_id&gt;:&lt;client_secret&gt;:&lt;refresh_token&gt;@&lt;instance_url&gt;
-</code></pre>
-
-<p>This means with the above output sample, you would use the following information:</p>
+<h3 id="html-table-output">HTML Table Output</h3>
 
 <div class="pdoc-code codehilite">
-<pre><span></span><code><span class="c1"># This is for illustrative purposes; use environment variables instead</span>
-<span class="n">client_id</span> <span class="o">=</span> <span class="s2">&quot;PlatformCLI&quot;</span>
-<span class="n">client_secret</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
-<span class="n">refresh_token</span> <span class="o">=</span> <span class="s2">&quot;nwAeSuiRqvRHrkbMmCKvLHasS0vRbh3Cf2RF41WZzmjtThnCwOuDvn9HObcUjKuTExJPqPegIwnLB5aH6GNWYhU&quot;</span>
-<span class="n">instance_url</span> <span class="o">=</span> <span class="s2">&quot;https://example-dev-ed.trailblaze.my.salesforce.com&quot;</span>
-
-<span class="kn">from</span><span class="w"> </span><span class="nn">sfq</span><span class="w"> </span><span class="kn">import</span> <span class="n">SFAuth</span>
-<span class="n">sf</span> <span class="o">=</span> <span class="n">SFAuth</span><span class="p">(</span>
-    <span class="n">instance_url</span><span class="o">=</span><span class="n">instance_url</span><span class="p">,</span>
-    <span class="n">client_id</span><span class="o">=</span><span class="n">client_id</span><span class="p">,</span>
-    <span class="n">client_secret</span><span class="o">=</span><span class="n">client_secret</span><span class="p">,</span>
-    <span class="n">refresh_token</span><span class="o">=</span><span class="n">refresh_token</span><span class="p">,</span>
-<span class="p">)</span>
+<pre><span></span><code><span class="n">result</span> <span class="o">=</span> <span class="n">sf</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="s2">&quot;SELECT Id, Name FROM Account LIMIT 5&quot;</span><span class="p">)</span>
+<span class="n">html</span> <span class="o">=</span> <span class="n">sf</span><span class="o">.</span><span class="n">records_to_html_table</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">&quot;records&quot;</span><span class="p">],</span> <span class="n">styled</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 </code></pre>
-</div></li>
-</ol>
+</div>
 
-<h2 id="important-considerations">Important Considerations</h2>
+<h2 id="advanced-guides">Advanced Guides</h2>
 
 <ul>
-<li><strong>Security</strong>: Safeguard your client_id, client_secret, and refresh_token diligently, as they provide access to your Salesforce environment. Avoid sharing or exposing them in unsecured locations.</li>
-<li><strong>Efficient Data Retrieval</strong>: The <code>query</code> and <code>cquery</code> function automatically handles pagination, simplifying record retrieval across large datasets. It's recommended to use the <code>LIMIT</code> clause in queries to control the volume of data returned.</li>
-<li><strong>Advanced Tooling Queries</strong>: Utilize the <code>tooling_query</code> function to access the Salesforce Tooling API. This option is designed for performing complex operations, enhancing your data management capabilities.</li>
+<li><strong><a href="docs/authentication.md">Authentication Guide</a></strong> - OAuth flows, token management, proxy configuration</li>
+<li><strong><a href="docs/platform-events.md">Platform Events Guide</a></strong> - Publishing and subscribing to events</li>
+<li><strong><a href="docs/mdapi.md">MDAPI Guide</a></strong> - Retrieving metadata components</li>
+<li><strong><a href="docs/ci-integration.md">CI Integration Guide</a></strong> - CI/CD tracing and custom headers</li>
+<li><strong><a href="docs/telemetry.md">Telemetry Guide</a></strong> - Telemetry configuration and privacy</li>
 </ul>
 
-<h2 id="telemetry">Telemetry</h2>
+<h2 id="exception-handling">Exception Handling</h2>
 
-<p><code><a href="">sfq</a></code> includes an <strong>enhanced HTTP event telemetry system</strong> to gather usage insights and diagnostics. Telemetry is <strong>enabled by default</strong> to help improve the library, but you can disable it if you prefer.</p>
+<div class="pdoc-code codehilite">
+<pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">sfq</span><span class="w"> </span><span class="kn">import</span> <span class="n">SFAuth</span><span class="p">,</span> <span class="n">AuthenticationError</span><span class="p">,</span> <span class="n">QueryError</span><span class="p">,</span> <span class="n">APIError</span>
 
-<h3 id="configuration">Configuration</h3>
+<span class="k">try</span><span class="p">:</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">sf</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="s2">&quot;SELECT Id FROM NonExistentObject&quot;</span><span class="p">)</span>
+<span class="k">except</span> <span class="n">QueryError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Query failed: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="k">except</span> <span class="n">APIError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;API error: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</code></pre>
+</div>
 
-<table>
-<thead>
-<tr>
-  <th>Variable</th>
-  <th>Description</th>
-  <th>Default</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-  <td><code>SFQ_TELEMETRY</code></td>
-  <td><code>0</code> (disabled), <code>1</code> (Standard), <code>2</code> (Debug), <code>-1</code> (Full)</td>
-  <td><code>1</code> (Standard)</td>
-</tr>
-<tr>
-  <td><code>SFQ_TELEMETRY_ENDPOINT</code></td>
-  <td>URL to POST telemetry events</td>
-  <td>Grafana Cloud Loki endpoint</td>
-</tr>
-<tr>
-  <td><code>SFQ_TELEMETRY_SAMPLING</code></td>
-  <td>Fraction of events to send (<code>0.0</code>–<code>1.0</code>)</td>
-  <td><code>1.0</code></td>
-</tr>
-<tr>
-  <td><code>SFQ_TELEMETRY_KEY</code></td>
-  <td>Optional bearer token for the telemetry endpoint</td>
-  <td>None</td>
-</tr>
-<tr>
-  <td><code>SFQ_GRAFANACLOUD_URL</code></td>
-  <td>URL to fetch credentials JSON, or base64 encoded credentials JSON</td>
-  <td>Public credentials endpoint</td>
-</tr>
-<tr>
-  <td><code>DD_API_KEY</code></td>
-  <td>Override DataDog API key (for security)</td>
-  <td>None (uses credentials file)</td>
-</tr>
-<tr>
-  <td><code>DD_SOURCE</code></td>
-  <td>Override DataDog source field</td>
-  <td><code>"salesforce"</code></td>
-</tr>
-<tr>
-  <td><code>DD_SERVICE</code></td>
-  <td>Override DataDog service field</td>
-  <td><code>"salesforce"</code></td>
-</tr>
-<tr>
-  <td><code>DD_TAGS</code></td>
-  <td>Override DataDog tags (comma-separated key:value pairs)</td>
-  <td><code>"source:salesforce"</code></td>
-</tr>
-</tbody>
-</table>
-
-<h3 id="telemetry-levels">Telemetry Levels</h3>
+<p>Available exceptions:</p>
 
 <ul>
-<li><p><strong>Disabled (<code>0</code>)</strong>:
-No telemetry events are sent.</p></li>
-<li><p><strong>Standard (<code>1</code>)</strong> <em>(default)</em>:
-Sends <strong>anonymized, non-PII events</strong> to Grafana Cloud including method names, status codes, and execution duration. Safe for general usage.</p></li>
-<li><p><strong>Debug (<code>2</code>)</strong>:
-Sends <strong>additional diagnostic information</strong> and forwards log records from the library. May include sensitive data (tokens, IDs, PII, stack traces). <strong>Do not enable Debug telemetry against public endpoints.</strong></p></li>
-<li><p><strong>Full (<code>-1</code>)</strong> <em>(undocumented, internal only)</em>:
-Sends <strong>complete request/response data</strong> including bodies and headers. Only for internal corporate networks with proper security controls.</p></li>
+<li><code><a href="#SFQException">SFQException</a></code> - Base exception</li>
+<li><code><a href="#AuthenticationError">AuthenticationError</a></code> - Authentication failures</li>
+<li><code><a href="#APIError">APIError</a></code> - General API errors</li>
+<li><code><a href="#QueryError">QueryError</a></code> - Query-specific errors</li>
+<li><code><a href="#QueryTimeoutError">QueryTimeoutError</a></code> - Query timeout errors</li>
+<li><code><a href="#CRUDError">CRUDError</a></code> - CRUD operation errors</li>
+<li><code><a href="#SOAPError">SOAPError</a></code> - SOAP API errors</li>
+<li><code><a href="#HTTPError">HTTPError</a></code> - HTTP-level errors</li>
+<li><code><a href="#ConfigurationError">ConfigurationError</a></code> - Configuration errors</li>
 </ul>
 
-<h3 id="telemetry-destinations">Telemetry Destinations</h3>
-
-<p>The enhanced telemetry system supports multiple destinations:</p>
-
-<ol>
-<li><p><strong>Grafana Cloud Loki</strong> (default): Standard and Debug telemetry is sent to Grafana Cloud for visualization and analysis.</p></li>
-<li><p><strong>DataDog Logs</strong>: Telemetry can be sent to DataDog logs endpoint for monitoring and analysis.</p></li>
-<li><p><strong>Salesforce Telemetry Endpoint</strong>: When available, telemetry can also be sent directly to Salesforce endpoints using the active session's access token.</p></li>
-</ol>
-
-<h3 id="privacy-security">Privacy &amp; Security</h3>
+<h2 id="requirements">Requirements</h2>
 
 <ul>
-<li><strong>Opt-out</strong>: You can disable telemetry by setting <code>SFQ_TELEMETRY=0</code>.</li>
-<li><strong>Standard events</strong> do <strong>not</strong> include request bodies, tokens, or user/org identifiers.</li>
-<li><strong>Debug diagnostics</strong> are intended for internal use <strong>only</strong>. Route them to a trusted internal endpoint.</li>
-<li><strong>Full transparency mode</strong> should only be used in secure, internal networks.</li>
-<li>Review retention and access controls on any telemetry receiver.</li>
-</ul>
-
-<h3 id="usage-examples">Usage Examples</h3>
-
-<p><strong>Disable telemetry entirely:</strong></p>
-
-<div class="pdoc-code codehilite">
-<pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">SFQ_TELEMETRY</span><span class="o">=</span><span class="m">0</span>
-</code></pre>
-</div>
-
-<p><strong>Enable Debug telemetry for troubleshooting:</strong></p>
-
-<div class="pdoc-code codehilite">
-<pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">SFQ_TELEMETRY</span><span class="o">=</span><span class="m">2</span>
-<span class="nb">export</span><span class="w"> </span><span class="nv">SFQ_TELEMETRY_ENDPOINT</span><span class="o">=</span>https://your-internal-telemetry-endpoint.com
-</code></pre>
-</div>
-
-<p><strong>Custom Grafana Cloud credentials:</strong></p>
-
-<div class="pdoc-code codehilite">
-<pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">SFQ_GRAFANACLOUD_URL</span><span class="o">=</span>https://your-grafana-credentials-endpoint.com/creds.json
-</code></pre>
-</div>
-
-<p><strong>DataDog Logs Configuration:</strong>
-To use DataDog as your telemetry destination, provide DataDog credentials JSON:</p>
-
-<div class="pdoc-code codehilite">
-<pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">SFQ_GRAFANACLOUD_URL</span><span class="o">=</span>https://your-datadog-credentials-endpoint.com/creds.json
-</code></pre>
-</div>
-
-<p>With DataDog credentials JSON format:</p>
-
-<div class="pdoc-code codehilite">
-<pre><span></span><code><span class="p">{</span>
-<span class="w">  </span><span class="nt">&quot;URL&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;https://http-intake.logs.us3.datadoghq.com/api/v2/logs&quot;</span><span class="p">,</span>
-<span class="w">  </span><span class="nt">&quot;DD_API_KEY&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;your_datadog_api_key_here&quot;</span><span class="p">,</span>
-<span class="w">  </span><span class="nt">&quot;PROVIDER&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;DATADOG&quot;</span>
-<span class="p">}</span>
-</code></pre>
-</div>
-
-<p><strong>DataDog Environment Variable Overrides:</strong></p>
-
-<div class="pdoc-code codehilite">
-<pre><span></span><code><span class="c1"># Override DataDog API key (recommended for security)</span>
-<span class="nb">export</span><span class="w"> </span><span class="nv">DD_API_KEY</span><span class="o">=</span><span class="s2">&quot;your_production_datadog_api_key&quot;</span>
-
-<span class="c1"># Customize DataDog fields</span>
-<span class="nb">export</span><span class="w"> </span><span class="nv">DD_SOURCE</span><span class="o">=</span><span class="s2">&quot;custom_app_name&quot;</span>
-<span class="nb">export</span><span class="w"> </span><span class="nv">DD_SERVICE</span><span class="o">=</span><span class="s2">&quot;api_service&quot;</span>
-<span class="nb">export</span><span class="w"> </span><span class="nv">DD_TAGS</span><span class="o">=</span><span class="s2">&quot;env:production,team:backend,region:us-east&quot;</span>
-</code></pre>
-</div>
-
-<p><strong>Base64 encoded credentials:</strong>
-Instead of providing a URL, you can also provide base64 encoded credentials JSON:</p>
-
-<div class="pdoc-code codehilite">
-<pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">SFQ_GRAFANACLOUD_URL</span><span class="o">=</span><span class="s2">&quot;</span><span class="k">$(</span><span class="nb">echo</span><span class="w"> </span><span class="s1">&#39;{&quot;URL&quot;: &quot;https://your-loki-endpoint.com/loki/api/v1/push&quot;, &quot;USER_ID&quot;: &quot;1234567&quot;, &quot;API_KEY&quot;: &quot;your-api-key-here&quot;}&#39;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>base64<span class="w"> </span>-w<span class="w"> </span><span class="m">0</span><span class="k">)</span><span class="s2">&quot;</span>
-</code></pre>
-</div>
-
-<p>For DataDog base64 credentials:</p>
-
-<div class="pdoc-code codehilite">
-<pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">SFQ_GRAFANACLOUD_URL</span><span class="o">=</span><span class="s2">&quot;</span><span class="k">$(</span><span class="nb">echo</span><span class="w"> </span><span class="s1">&#39;{&quot;URL&quot;: &quot;https://http-intake.logs.us3.datadoghq.com/api/v2/logs&quot;, &quot;DD_API_KEY&quot;: &quot;your_api_key&quot;, &quot;PROVIDER&quot;: &quot;DATADOG&quot;}&#39;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>base64<span class="w"> </span>-w<span class="w"> </span><span class="m">0</span><span class="k">)</span><span class="s2">&quot;</span>
-</code></pre>
-</div>
-
-<p><strong>Reduce telemetry volume (sample 10% of events):</strong></p>
-
-<div class="pdoc-code codehilite">
-<pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">SFQ_TELEMETRY_SAMPLING</span><span class="o">=</span><span class="m">0</span>.1
-</code></pre>
-</div>
-
-<h3 id="log-samples">Log Samples</h3>
-
-<p>Here are examples of telemetry log entries at different levels:</p>
-
-<p><strong>Standard Telemetry Event (Grafana Cloud):</strong>
-This includes anonymized, non-PII fields (method, status code, duration). Intended for general opt-in use.</p>
-
-<div class="pdoc-code codehilite">
-<pre><span></span><code><span class="p">{</span>
-<span class="w">    </span><span class="nt">&quot;timestamp&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026-01-19T09:21:05Z&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;sdk&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sfq&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;sdk_version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;0.0.53&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;event_type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;http.request&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;client_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;c86f259c69db106c1a28d28751196036ae884bcf93e8282657bd4228e06e5897&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;telemetry_level&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;trace_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;5d280fca-bb04-45a9-8d1b-929c6d33edfa&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;span&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;default&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;log_level&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;INFO&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;payload&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="nt">&quot;method&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;GET&quot;</span><span class="p">,</span>
-<span class="w">        </span><span class="nt">&quot;status_code&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">200</span><span class="p">,</span>
-<span class="w">        </span><span class="nt">&quot;duration_ms&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">174</span><span class="p">,</span>
-<span class="w">        </span><span class="nt">&quot;environment&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">            </span><span class="nt">&quot;os&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Windows&quot;</span><span class="p">,</span>
-<span class="w">            </span><span class="nt">&quot;os_release&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;11&quot;</span><span class="p">,</span>
-<span class="w">            </span><span class="nt">&quot;python_version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;3.14.2&quot;</span><span class="p">,</span>
-<span class="w">            </span><span class="nt">&quot;sforce_client&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sfq/0.0.56&quot;</span>
-<span class="w">        </span><span class="p">}</span>
-<span class="w">    </span><span class="p">}</span>
-</code></pre>
-</div>
-
-<p><strong>DataDog Logs Format:</strong>
-When telemetry is sent to DataDog, it uses the DataDog logs format:</p>
-
-<div class="pdoc-code codehilite">
-<pre><span></span><code><span class="p">{</span>
-<span class="w">    </span><span class="nt">&quot;ddsource&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;salesforce&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;service&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;salesforce&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;hostname&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;https://example.my.salesforce.com&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;message&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">      </span><span class="nt">&quot;timestamp&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026-01-19T09:21:05Z&quot;</span><span class="p">,</span>
-<span class="w">      </span><span class="nt">&quot;sdk&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sfq&quot;</span><span class="p">,</span>
-<span class="w">      </span><span class="nt">&quot;sdk_version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;0.0.53&quot;</span><span class="p">,</span>
-<span class="w">      </span><span class="nt">&quot;event_type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;http.request&quot;</span><span class="p">,</span>
-<span class="w">      </span><span class="nt">&quot;client_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;c86f259c69db106c1a28d28751196036ae884bcf93e8282657bd4228e06e5897&quot;</span><span class="p">,</span>
-<span class="w">      </span><span class="nt">&quot;telemetry_level&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
-<span class="w">      </span><span class="nt">&quot;trace_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;5d280fca-bb04-45a9-8d1b-929c6d33edfa&quot;</span><span class="p">,</span>
-<span class="w">      </span><span class="nt">&quot;span&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;default&quot;</span><span class="p">,</span>
-<span class="w">      </span><span class="nt">&quot;log_level&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;INFO&quot;</span><span class="p">,</span>
-<span class="w">      </span><span class="nt">&quot;payload&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="nt">&quot;method&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;GET&quot;</span><span class="p">,</span>
-<span class="w">        </span><span class="nt">&quot;status_code&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">200</span><span class="p">,</span>
-<span class="w">        </span><span class="nt">&quot;duration_ms&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">174</span><span class="p">,</span>
-<span class="w">        </span><span class="nt">&quot;environment&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">          </span><span class="nt">&quot;os&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Windows&quot;</span><span class="p">,</span>
-<span class="w">          </span><span class="nt">&quot;os_release&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;11&quot;</span><span class="p">,</span>
-<span class="w">          </span><span class="nt">&quot;python_version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;3.14.2&quot;</span><span class="p">,</span>
-<span class="w">          </span><span class="nt">&quot;sforce_client&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sfq/0.0.56&quot;</span>
-<span class="w">        </span><span class="p">}</span>
-<span class="w">      </span><span class="p">}</span>
-<span class="w">    </span><span class="p">},</span>
-<span class="w">    </span><span class="nt">&quot;ddtags&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;source:salesforce&quot;</span>
-<span class="p">}</span>
-</code></pre>
-</div>
-
-<p><strong>Salesforce Telemetry Event:</strong>
-When telemetry is sent to Salesforce endpoints, it includes Salesforce-specific fields.</p>
-
-<div class="pdoc-code codehilite">
-<pre><span></span><code><span class="p">{</span>
-<span class="w">    </span><span class="nt">&quot;timestamp&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2025-12-29T03:48:06Z&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;sdk&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sfq&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;sdk_version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;0.0.47&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;event_type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;http.request&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;client_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;c302d04df42738b23dbfe59688fac06367b768e180d9dfb4794a99cab41dad78&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;telemetry_level&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;trace_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;a1b2c3d4-e5f6-7890-abcd-ef1234567890&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;span&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;default&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;log_level&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;INFO&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;payload&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="nt">&quot;method&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;GET&quot;</span><span class="p">,</span>
-<span class="w">        </span><span class="nt">&quot;endpoint&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;/services/data/v56.0/query&quot;</span><span class="p">,</span>
-<span class="w">        </span><span class="nt">&quot;status&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">200</span><span class="p">,</span>
-<span class="w">        </span><span class="nt">&quot;duration_ms&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">123</span><span class="p">,</span>
-<span class="w">        </span><span class="nt">&quot;access_token&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;00Dxx0000000000!AQEAQ...&quot;</span><span class="p">,</span>
-<span class="w">        </span><span class="nt">&quot;instance_url&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;https://example.my.salesforce.com&quot;</span><span class="p">,</span>
-<span class="w">        </span><span class="nt">&quot;environment&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">            </span><span class="nt">&quot;os&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Windows&quot;</span><span class="p">,</span>
-<span class="w">            </span><span class="nt">&quot;os_release&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;10&quot;</span><span class="p">,</span>
-<span class="w">            </span><span class="nt">&quot;python_version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;3.11.14&quot;</span><span class="p">,</span>
-<span class="w">            </span><span class="nt">&quot;user_agent&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sfq/0.0.56&quot;</span><span class="p">,</span>
-<span class="w">            </span><span class="nt">&quot;sforce_client&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sfq/0.0.56&quot;</span>
-<span class="w">        </span><span class="p">}</span>
-<span class="w">    </span><span class="p">}</span>
-<span class="p">}</span>
-</code></pre>
-</div>
-
-<p><strong>Debug Telemetry Event:</strong>
-This includes detailed request/response data and diagnostics. This is intended for opt-in use only.</p>
-
-<div class="pdoc-code codehilite">
-<pre><span></span><code><span class="p">{</span>
-<span class="w">    </span><span class="nt">&quot;timestamp&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026-01-19T09:21:57Z&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;sdk&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sfq&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;sdk_version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;0.0.48&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;event_type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;http.request&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;client_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;57b550c8201c70579782caeb5ef6aa7ad8ba024e4f9d10cdcec1aa8086f0d4ee&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;telemetry_level&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;trace_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;f42510bb-48b5-4636-9f6e-c12c578d2de6&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;span&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;default&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;log_level&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;DEBUG&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;payload&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="nt">&quot;method&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;GET&quot;</span><span class="p">,</span>
-<span class="w">        </span><span class="nt">&quot;status&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">200</span><span class="p">,</span>
-<span class="w">        </span><span class="nt">&quot;duration_ms&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">187</span><span class="p">,</span>
-<span class="w">        </span><span class="nt">&quot;request_headers&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">            </span><span class="nt">&quot;User-Agent&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sfq/0.0.56&quot;</span><span class="p">,</span>
-<span class="w">            </span><span class="nt">&quot;Sforce-Call-Options&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;client=sfq/0.0.56&quot;</span><span class="p">,</span>
-<span class="w">            </span><span class="nt">&quot;Accept&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;application/json&quot;</span><span class="p">,</span>
-<span class="w">            </span><span class="nt">&quot;Content-Type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;application/json&quot;</span><span class="p">,</span>
-<span class="w">            </span><span class="nt">&quot;Authorization&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;REDACTED&quot;</span>
-<span class="w">        </span><span class="p">},</span>
-<span class="w">        </span><span class="nt">&quot;environment&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">            </span><span class="nt">&quot;os&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Windows&quot;</span><span class="p">,</span>
-<span class="w">            </span><span class="nt">&quot;os_release&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;11&quot;</span><span class="p">,</span>
-<span class="w">            </span><span class="nt">&quot;python_version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;3.14.2&quot;</span><span class="p">,</span>
-<span class="w">            </span><span class="nt">&quot;user_agent&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sfq/0.0.56&quot;</span><span class="p">,</span>
-<span class="w">            </span><span class="nt">&quot;sforce_client&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sfq/0.0.56&quot;</span>
-<span class="w">        </span><span class="p">},</span>
-<span class="w">        </span><span class="nt">&quot;path_hash&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;119a7bffe38631d987935f5f88effb89fe9267993fa4b459f712a993ef5859f0&quot;</span>
-<span class="w">    </span><span class="p">}</span>
-</code></pre>
-</div>
-
-<p><strong>Full Telemetry Event:</strong>
-This includes complete request/response bodies and headers. Intended for internal corporate networks only.</p>
-
-<div class="pdoc-code codehilite">
-<pre><span></span><code><span class="p">{</span>
-<span class="w">    </span><span class="nt">&quot;timestamp&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026-01-19T09:23:19Z&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;sdk&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sfq&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;sdk_version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;0.0.53&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;event_type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;http.request&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;client_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2a67a773d8cb1137ab1dfe6ad579217cc3fbbb3c36103350b38fa06316edc674&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;telemetry_level&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">-1</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;trace_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;28e48c34-19c5-4bc3-80a8-d5eaa892ac6d&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;span&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;default&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;log_level&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;DEBUG&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;payload&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="nt">&quot;method&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;GET&quot;</span><span class="p">,</span>
-<span class="w">        </span><span class="nt">&quot;endpoint&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;/services/data/v65.0/query?q=SELECT Id FROM Organization LIMIT 1&quot;</span><span class="p">,</span>
-<span class="w">        </span><span class="nt">&quot;status&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">200</span><span class="p">,</span>
-<span class="w">        </span><span class="nt">&quot;duration_ms&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">181</span><span class="p">,</span>
-<span class="w">        </span><span class="nt">&quot;request_headers&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">            </span><span class="nt">&quot;User-Agent&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sfq/0.0.56&quot;</span><span class="p">,</span>
-<span class="w">            </span><span class="nt">&quot;Sforce-Call-Options&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;client=sfq/0.0.56&quot;</span><span class="p">,</span>
-<span class="w">            </span><span class="nt">&quot;Accept&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;application/json&quot;</span><span class="p">,</span>
-<span class="w">            </span><span class="nt">&quot;Content-Type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;application/json&quot;</span><span class="p">,</span>
-<span class="w">            </span><span class="nt">&quot;Authorization&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;********&quot;</span>
-<span class="w">        </span><span class="p">},</span>
-<span class="w">        </span><span class="nt">&quot;response_body&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">            </span><span class="nt">&quot;totalSize&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
-<span class="w">            </span><span class="nt">&quot;done&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
-<span class="w">            </span><span class="nt">&quot;records&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-<span class="w">                </span><span class="p">{</span>
-<span class="w">                    </span><span class="nt">&quot;attributes&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">                        </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Organization&quot;</span><span class="p">,</span>
-<span class="w">                        </span><span class="nt">&quot;url&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;/services/data/v65.0/sobjects/Organization/00Daa0000000000000&quot;</span>
-<span class="w">                    </span><span class="p">},</span>
-<span class="w">                    </span><span class="nt">&quot;Id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;00Daa0000000000000&quot;</span>
-<span class="w">                </span><span class="p">}</span>
-<span class="w">            </span><span class="p">]</span>
-<span class="w">        </span><span class="p">},</span>
-<span class="w">        </span><span class="nt">&quot;response_headers&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">            </span><span class="nt">&quot;Date&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Mon, 19 Jan 2026 09:23:19 GMT&quot;</span><span class="p">,</span>
-<span class="w">            </span><span class="nt">&quot;Vary&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Accept-Encoding&quot;</span><span class="p">,</span>
-<span class="w">            </span><span class="nt">&quot;Set-Cookie&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;********&quot;</span><span class="p">,</span>
-<span class="w">            </span><span class="nt">&quot;X-Content-Type-Options&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;nosniff&quot;</span><span class="p">,</span>
-<span class="w">            </span><span class="nt">&quot;Strict-Transport-Security&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;max-age=63072000; includeSubDomains&quot;</span><span class="p">,</span>
-<span class="w">            </span><span class="nt">&quot;X-Robots-Tag&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;none&quot;</span><span class="p">,</span>
-<span class="w">            </span><span class="nt">&quot;Cache-Control&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;no-cache,must-revalidate,max-age=0,no-store,private&quot;</span><span class="p">,</span>
-<span class="w">            </span><span class="nt">&quot;Sforce-Limit-Info&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;api-usage=5718/15000&quot;</span><span class="p">,</span>
-<span class="w">            </span><span class="nt">&quot;Content-Type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;application/json;charset=UTF-8&quot;</span><span class="p">,</span>
-<span class="w">            </span><span class="nt">&quot;Transfer-Encoding&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;chunked&quot;</span>
-<span class="w">        </span><span class="p">},</span>
-<span class="w">        </span><span class="nt">&quot;environment&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">            </span><span class="nt">&quot;os&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Windows&quot;</span><span class="p">,</span>
-<span class="w">            </span><span class="nt">&quot;os_release&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;11&quot;</span><span class="p">,</span>
-<span class="w">            </span><span class="nt">&quot;python_version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;3.14.2&quot;</span><span class="p">,</span>
-<span class="w">            </span><span class="nt">&quot;user_agent&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sfq/0.0.56&quot;</span><span class="p">,</span>
-<span class="w">            </span><span class="nt">&quot;sforce_client&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sfq/0.0.56&quot;</span>
-<span class="w">        </span><span class="p">}</span>
-<span class="w">    </span><span class="p">}</span>
-<span class="p">}</span>
-</code></pre>
-</div>
-
-<p>The following fields appear in telemetry events; below are concise explanations to help you interpret them:</p>
-
-<ul>
-<li><code>timestamp</code>: ISO 8601 timestamp (UTC) when the event was generated.</li>
-<li><code>sdk</code>: The SDK name that generated the event (this library: <code><a href="">sfq</a></code>).</li>
-<li><code>sdk_version</code>: Version of the SDK (semantic version string).</li>
-<li><code>sfk_version</code>: Alias for <code>sdk_version</code> (included for compatibility with some consumers).</li>
-<li><code>event_type</code>: Logical event category (e.g., <code>http.request</code>, <code>log.record</code>).</li>
-<li><code>client_id</code>: Anonymous identifier generated <strong>at runtime</strong> for the current client instance (SHA-256 of a UUID). This ID is <strong>not persisted</strong> across runs and <strong>cannot be traced</strong> to any user or organization data. Its purpose is to provide a temporary, unique identifier for telemetry events.</li>
-<li><code>telemetry_level</code>: Telemetry level active for the client (0=disabled, 1=Standard, 2=Debug, -1=Full).</li>
-<li><code>trace_id</code>: Unique trace identifier for correlating related events.</li>
-<li><code>span</code>: Span identifier for distributed tracing.</li>
-<li><p><code>log_level</code>: Log level of the event (INFO for Standard, DEBUG for Debug/Full).</p></li>
-<li><p><code>payload.method</code>: HTTP method used (e.g., <code>GET</code>, <code>POST</code>, <code>PUT</code>, <code>DELETE</code>).</p></li>
-<li><code>payload.status</code> / <code>payload.status_code</code>: HTTP response status code (when available).</li>
-<li><code>payload.duration_ms</code>: Duration of the operation in milliseconds (when available).</li>
-<li><code>payload.endpoint</code>: (Salesforce telemetry only) The request endpoint path.</li>
-<li><code>payload.access_token</code>: (Salesforce telemetry only) Access token used for authentication.</li>
-<li><code>payload.instance_url</code>: (Salesforce telemetry only) Salesforce instance URL.</li>
-<li><p><code>payload.environment</code>: Environment summary containing:</p>
-
-<ul>
-<li><code>os</code>: OS name (e.g., <code>Windows</code>, <code>Linux</code>).</li>
-<li><code>os_release</code>: OS release string (e.g., <code>10</code>).</li>
-<li><code>python_version</code>: Python runtime version (e.g., <code>3.11.14</code>).</li>
-<li><code>user_agent</code>: (Debug/Full telemetry) User-Agent header value when available.</li>
-<li><code>sforce_client</code>: extracted <code>client=</code> value from <code>Sforce-Call-Options</code> header when available.</li>
-</ul></li>
-<li><p><code>payload.path_hash</code> (Debug telemetry only): SHA-256 hash of the sanitized path string. The raw request path/URL is never included in Standard telemetry (level 1); Debug telemetry (level 2) includes only this hash to allow grouping without sending identifying path components.</p></li>
-<li><p><code>payload.request_headers</code> (Debug/Full telemetry): Request headers with sensitive information redacted.</p></li>
-<li><code>payload.response_headers</code> (Debug/Full telemetry): Response headers with sensitive information redacted.</li>
-<li><code>payload.response_body</code> (Full telemetry only): Complete response body with sensitive information redacted.</li>
-</ul>
-
-<h3 id="datadog-specific-fields">DataDog-Specific Fields</h3>
-
-<p>When using DataDog as the telemetry destination, the following fields are included:</p>
-
-<ul>
-<li><code>ddsource</code>: Source of the log (default: "salesforce", configurable via <code>DD_SOURCE</code> environment variable)</li>
-<li><code>service</code>: Service name (default: "salesforce", configurable via <code>DD_SERVICE</code> environment variable)</li>
-<li><code>hostname</code>: Hostname or identifier (uses Salesforce <code>instance_url</code> for debug levels, <code>org_id</code> for standard level)</li>
-<li><code>message</code>: JSON string containing the complete telemetry event payload</li>
-<li><code>ddtags</code>: Comma-separated key:value tags (default: "source:salesforce", configurable via <code>DD_TAGS</code> environment variable)</li>
-</ul>
-
-<h3 id="grafana-cloud-format">Grafana Cloud Format</h3>
-
-<p>When sending to Grafana Cloud Loki, events are wrapped in the Loki format:</p>
-
-<ul>
-<li><code>streams</code>: Array containing stream objects.</li>
-<li><code>streams[].stream</code>: Stream labels/metadata including SDK info and telemetry level.</li>
-<li><code>streams[].values</code>: Array of <code>[timestamp_ns, json_event]</code> pairs.</li>
-</ul>
-
-<p>If you need more detail for debugging, enable Debug telemetry (<code>SFQ_TELEMETRY=2</code>) and route events to a trusted internal endpoint via <code>SFQ_TELEMETRY_ENDPOINT</code>. To disable telemetry entirely, set <code>SFQ_TELEMETRY=0</code>.</p>
-
-<h2 id="ci-aware-http-header-attachment">CI-Aware HTTP Header Attachment</h2>
-
-<p><code><a href="">sfq</a></code> automatically attaches traceable CI metadata to outbound HTTP requests when running in CI environments. This enables request tracking and correlation across systems through the <code>AdditionalInfo</code> fields for ApiEvent and LoginEvent.</p>
-
-<h3 id="how-it-works">How It Works</h3>
-
-<p>When running in a CI environment, <code><a href="">sfq</a></code> automatically detects the CI provider and attaches non-PII metadata headers to all HTTP requests. </p>
-
-<h3 id="supported-ci-providers">Supported CI Providers</h3>
-
-<table>
-<thead>
-<tr>
-  <th>CI Provider</th>
-  <th>Detection Variable</th>
-  <th>Value</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-  <td>GitHub Actions</td>
-  <td><code>GITHUB_ACTIONS</code></td>
-  <td><code>true</code></td>
-</tr>
-<tr>
-  <td>GitLab CI</td>
-  <td><code>GITLAB_CI</code></td>
-  <td><code>true</code></td>
-</tr>
-<tr>
-  <td>CircleCI</td>
-  <td><code>CIRCLECI</code></td>
-  <td><code>true</code></td>
-</tr>
-</tbody>
-</table>
-
-<h3 id="header-format">Header Format</h3>
-
-<p>All CI metadata uses the <code>x-sfdc-addinfo-</code> prefix:</p>
-
-<pre><code>x-sfdc-addinfo-ci_provider: github
-x-sfdc-addinfo-run_id: 123456
-x-sfdc-addinfo-repository: org_repo
-x-sfdc-addinfo-workflow: Release
-x-sfdc-addinfo-ref: refs_heads_main
-x-sfdc-addinfo-runner_os: Linux
-</code></pre>
-
-<h3 id="non-pii-metadata">Non-PII Metadata</h3>
-
-<p>The following metadata is automatically included when available:</p>
-
-<p><strong>GitHub Actions:</strong></p>
-
-<ul>
-<li><code>GITHUB_RUN_ID</code> → <code>x-sfdc-addinfo-run_id</code></li>
-<li><code>GITHUB_REPOSITORY</code> → <code>x-sfdc-addinfo-repository</code></li>
-<li><code>GITHUB_WORKFLOW</code> → <code>x-sfdc-addinfo-workflow</code></li>
-<li><code>GITHUB_REF</code> → <code>x-sfdc-addinfo-ref</code></li>
-<li><code>RUNNER_OS</code> → <code>x-sfdc-addinfo-runner_os</code></li>
-</ul>
-
-<p><strong>GitLab CI:</strong></p>
-
-<ul>
-<li><code>CI_PIPELINE_ID</code> → <code>x-sfdc-addinfo-pipeline_id</code></li>
-<li><code>CI_PROJECT_PATH</code> → <code>x-sfdc-addinfo-project_path</code></li>
-<li><code>CI_JOB_NAME</code> → <code>x-sfdc-addinfo-job_name</code></li>
-<li><code>CI_COMMIT_REF_NAME</code> → <code>x-sfdc-addinfo-commit_ref_name</code></li>
-<li><code>CI_RUNNER_ID</code> → <code>x-sfdc-addinfo-runner_id</code></li>
-</ul>
-
-<p><strong>CircleCI:</strong></p>
-
-<ul>
-<li><code>CIRCLE_WORKFLOW_ID</code> → <code>x-sfdc-addinfo-workflow_id</code></li>
-<li><code>CIRCLE_PROJECT_REPONAME</code> → <code>x-sfdc-addinfo-project_reponame</code></li>
-<li><code>CIRCLE_BRANCH</code> → <code>x-sfdc-addinfo-branch</code></li>
-<li><code>CIRCLE_BUILD_NUM</code> → <code>x-sfdc-addinfo-build_num</code></li>
-</ul>
-
-<h3 id="pii-metadata">PII Metadata</h3>
-
-<p>PII headers are not included by default. To include them, set the environment variable:</p>
-
-<div class="pdoc-code codehilite">
-<pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">SFQ_ATTACH_CI_PII</span><span class="o">=</span><span class="nb">true</span>
-</code></pre>
-</div>
-
-<p><strong>GitHub Actions PII:</strong></p>
-
-<ul>
-<li><code>GITHUB_ACTOR</code> → <code>x-sfdc-addinfo-pii-actor</code></li>
-<li><code>GITHUB_ACTOR_ID</code> → <code>x-sfdc-addinfo-pii-actor_id</code></li>
-<li><code>GITHUB_TRIGGERING_ACTOR</code> → <code>x-sfdc-addinfo-pii-triggering_actor</code></li>
-</ul>
-
-<p><strong>GitLab CI PII:</strong></p>
-
-<ul>
-<li><code>GITLAB_USER_LOGIN</code> → <code>x-sfdc-addinfo-pii-user_login</code></li>
-<li><code>GITLAB_USER_NAME</code> → <code>x-sfdc-addinfo-pii-user_name</code></li>
-<li><code>GITLAB_USER_EMAIL</code> → <code>x-sfdc-addinfo-pii-user_email</code></li>
-<li><code>GITLAB_USER_ID</code> → <code>x-sfdc-addinfo-pii-user_id</code></li>
-</ul>
-
-<p><strong>CircleCI PII:</strong></p>
-
-<ul>
-<li><code>CIRCLE_USERNAME</code> → <code>x-sfdc-addinfo-pii-username</code></li>
-</ul>
-
-<h3 id="configuration-2">Configuration</h3>
-
-<table>
-<thead>
-<tr>
-  <th>Variable</th>
-  <th>Description</th>
-  <th>Default</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-  <td><code>SFQ_ATTACH_CI_PII</code></td>
-  <td>Include PII headers (<code>true</code>, <code>1</code>, <code>yes</code>, <code>y</code>)</td>
-  <td><code>false</code></td>
-</tr>
-<tr>
-  <td><code>SFQ_ATTACH_CI</code></td>
-  <td>Include CI headers (<code>true</code>, <code>1</code>, <code>yes</code>, <code>y</code>)</td>
-  <td><code>true</code></td>
-</tr>
-</tbody>
-</table>
-
-<h2 id="custom-addinfo-headers">Custom Addinfo Headers</h2>
-
-<p><code><a href="">sfq</a></code> supports injecting arbitrary custom headers into HTTP requests using the <code>SFQ_HEADERS</code> environment variable. This allows you to add custom metadata to all API requests, which appears in the <code>AdditionalInfo</code> fields for ApiEvent and LoginEvent.</p>
-
-<h3 id="how-it-works-2">How It Works</h3>
-
-<p>The <code>SFQ_HEADERS</code> environment variable allows you to specify custom key-value pairs that will be converted into <code>x-sfdc-addinfo-</code> headers and attached to all HTTP requests.</p>
-
-<h3 id="usage-2">Usage</h3>
-
-<p>Set the <code>SFQ_HEADERS</code> environment variable using the format <code>key1:value1|key2:value2</code>:</p>
-
-<div class="pdoc-code codehilite">
-<pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">SFQ_HEADERS</span><span class="o">=</span><span class="s2">&quot;custom_key:custom_value|another_header:another_value&quot;</span>
-</code></pre>
-</div>
-
-<p>This will create the following HTTP headers:</p>
-
-<pre><code>x-sfdc-addinfo-custom_key: custom_value
-x-sfdc-addinfo-another_header: another_value
-</code></pre>
-
-<h3 id="example">Example</h3>
-
-<div class="pdoc-code codehilite">
-<pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">sfq</span><span class="w"> </span><span class="kn">import</span> <span class="n">SFAuth</span>
-
-<span class="c1"># Set custom headers</span>
-<span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;SFQ_HEADERS&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;deployment_id:deploy-123|environment:production|team:data-engineering&quot;</span>
-
-<span class="c1"># Initialize SFAuth</span>
-<span class="n">sf</span> <span class="o">=</span> <span class="n">SFAuth</span><span class="p">(</span>
-    <span class="n">instance_url</span><span class="o">=</span><span class="s2">&quot;https://example-dev-ed.trailblaze.my.salesforce.com&quot;</span><span class="p">,</span>
-    <span class="n">client_id</span><span class="o">=</span><span class="s2">&quot;your-client-id-here&quot;</span><span class="p">,</span>
-    <span class="n">client_secret</span><span class="o">=</span><span class="s2">&quot;your-client-secret-here&quot;</span><span class="p">,</span>
-    <span class="n">refresh_token</span><span class="o">=</span><span class="s2">&quot;your-refresh-token-here&quot;</span>
-<span class="p">)</span>
-
-<span class="c1"># All queries will now include the custom headers</span>
-<span class="n">result</span> <span class="o">=</span> <span class="n">sf</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="s2">&quot;SELECT Id FROM Account LIMIT 5&quot;</span><span class="p">)</span>
-</code></pre>
-</div>
-
-<h3 id="features-2">Features</h3>
-
-<ul>
-<li><strong>Multiple Headers</strong>: Separate multiple key-value pairs with <code>|</code></li>
-<li><strong>Value Support</strong>: Values can contain spaces, equals signs, and other special characters</li>
-<li><strong>Empty Handling</strong>: Empty keys or values are automatically ignored</li>
-<li><strong>Automatic Integration</strong>: Headers are automatically added to all HTTP requests</li>
-</ul>
-
-<h3 id="configuration-3">Configuration</h3>
-
-<table>
-<thead>
-<tr>
-  <th>Variable</th>
-  <th>Description</th>
-  <th>Default</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-  <td><code>SFQ_HEADERS</code></td>
-  <td>Custom headers in format `key1:value1</td>
-  <td>key2:value2`</td>
-  <td>None</td>
-</tr>
-</tbody>
-</table>
-
-<h3 id="use-cases">Use Cases</h3>
-
-<ul>
-<li><strong>Deployment Tracking</strong>: Add deployment IDs to track which deployment made API calls</li>
-<li><strong>Environment Identification</strong>: Identify requests from different environments (dev, staging, prod)</li>
-<li><strong>Team Attribution</strong>: Track which team or service is making requests</li>
-<li><strong>Custom Metadata</strong>: Add any custom metadata needed for tracking and debugging</li>
+<li>Python 3.9+</li>
+<li>No external dependencies</li>
 </ul>
 </div>
 
@@ -1183,7 +541,7 @@ x-sfdc-addinfo-another_header: another_value
 </span><span id="L-56"><a href="#L-56"><span class="linenos"> 56</span></a>    <span class="s2">&quot;unpack_mdapi_zip&quot;</span><span class="p">,</span>
 </span><span id="L-57"><a href="#L-57"><span class="linenos"> 57</span></a><span class="p">]</span>
 </span><span id="L-58"><a href="#L-58"><span class="linenos"> 58</span></a>
-</span><span id="L-59"><a href="#L-59"><span class="linenos"> 59</span></a><span class="n">__version__</span> <span class="o">=</span> <span class="s2">&quot;0.0.56&quot;</span>
+</span><span id="L-59"><a href="#L-59"><span class="linenos"> 59</span></a><span class="n">__version__</span> <span class="o">=</span> <span class="s2">&quot;0.0.57&quot;</span>
 </span><span id="L-60"><a href="#L-60"><span class="linenos"> 60</span></a><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="L-61"><a href="#L-61"><span class="linenos"> 61</span></a><span class="sd">### `__version__`</span>
 </span><span id="L-62"><a href="#L-62"><span class="linenos"> 62</span></a>
@@ -1201,7 +559,7 @@ x-sfdc-addinfo-another_header: another_value
 </span><span id="L-74"><a href="#L-74"><span class="linenos"> 74</span></a>        <span class="n">access_token</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
 </span><span id="L-75"><a href="#L-75"><span class="linenos"> 75</span></a>        <span class="n">api_version</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;v65.0&quot;</span><span class="p">,</span>
 </span><span id="L-76"><a href="#L-76"><span class="linenos"> 76</span></a>        <span class="n">token_endpoint</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;/services/oauth2/token&quot;</span><span class="p">,</span>
-</span><span id="L-77"><a href="#L-77"><span class="linenos"> 77</span></a>        <span class="n">user_agent</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;sfq/0.0.56&quot;</span><span class="p">,</span>
+</span><span id="L-77"><a href="#L-77"><span class="linenos"> 77</span></a>        <span class="n">user_agent</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;sfq/0.0.57&quot;</span><span class="p">,</span>
 </span><span id="L-78"><a href="#L-78"><span class="linenos"> 78</span></a>        <span class="n">sforce_client</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;_auto&quot;</span><span class="p">,</span>
 </span><span id="L-79"><a href="#L-79"><span class="linenos"> 79</span></a>        <span class="n">proxy</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;_auto&quot;</span><span class="p">,</span>
 </span><span id="L-80"><a href="#L-80"><span class="linenos"> 80</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
@@ -1245,7 +603,7 @@ x-sfdc-addinfo-another_header: another_value
 </span><span id="L-118"><a href="#L-118"><span class="linenos">118</span></a>        <span class="n">access_token</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="L-119"><a href="#L-119"><span class="linenos">119</span></a>        <span class="n">token_expiration_time</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="L-120"><a href="#L-120"><span class="linenos">120</span></a>        <span class="n">token_lifetime</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">15</span> <span class="o">*</span> <span class="mi">60</span><span class="p">,</span>
-</span><span id="L-121"><a href="#L-121"><span class="linenos">121</span></a>        <span class="n">user_agent</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;sfq/0.0.56&quot;</span><span class="p">,</span>
+</span><span id="L-121"><a href="#L-121"><span class="linenos">121</span></a>        <span class="n">user_agent</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;sfq/0.0.57&quot;</span><span class="p">,</span>
 </span><span id="L-122"><a href="#L-122"><span class="linenos">122</span></a>        <span class="n">sforce_client</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;_auto&quot;</span><span class="p">,</span>
 </span><span id="L-123"><a href="#L-123"><span class="linenos">123</span></a>        <span class="n">proxy</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;_auto&quot;</span><span class="p">,</span>
 </span><span id="L-124"><a href="#L-124"><span class="linenos">124</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
@@ -1316,7 +674,7 @@ x-sfdc-addinfo-another_header: another_value
 </span><span id="L-189"><a href="#L-189"><span class="linenos">189</span></a>        <span class="p">)</span>
 </span><span id="L-190"><a href="#L-190"><span class="linenos">190</span></a>
 </span><span id="L-191"><a href="#L-191"><span class="linenos">191</span></a>        <span class="c1"># Store version information</span>
-</span><span id="L-192"><a href="#L-192"><span class="linenos">192</span></a>        <span class="bp">self</span><span class="o">.</span><span class="n">__version__</span> <span class="o">=</span> <span class="s2">&quot;0.0.56&quot;</span>
+</span><span id="L-192"><a href="#L-192"><span class="linenos">192</span></a>        <span class="bp">self</span><span class="o">.</span><span class="n">__version__</span> <span class="o">=</span> <span class="s2">&quot;0.0.57&quot;</span>
 </span><span id="L-193"><a href="#L-193"><span class="linenos">193</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="L-194"><a href="#L-194"><span class="linenos">194</span></a><span class="sd">        ### `__version__`</span>
 </span><span id="L-195"><a href="#L-195"><span class="linenos">195</span></a><span class="sd">        </span>
@@ -1906,7 +1264,7 @@ x-sfdc-addinfo-another_header: another_value
 </span><span id="SFAuth-119"><a href="#SFAuth-119"><span class="linenos">119</span></a>        <span class="n">access_token</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="SFAuth-120"><a href="#SFAuth-120"><span class="linenos">120</span></a>        <span class="n">token_expiration_time</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="SFAuth-121"><a href="#SFAuth-121"><span class="linenos">121</span></a>        <span class="n">token_lifetime</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">15</span> <span class="o">*</span> <span class="mi">60</span><span class="p">,</span>
-</span><span id="SFAuth-122"><a href="#SFAuth-122"><span class="linenos">122</span></a>        <span class="n">user_agent</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;sfq/0.0.56&quot;</span><span class="p">,</span>
+</span><span id="SFAuth-122"><a href="#SFAuth-122"><span class="linenos">122</span></a>        <span class="n">user_agent</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;sfq/0.0.57&quot;</span><span class="p">,</span>
 </span><span id="SFAuth-123"><a href="#SFAuth-123"><span class="linenos">123</span></a>        <span class="n">sforce_client</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;_auto&quot;</span><span class="p">,</span>
 </span><span id="SFAuth-124"><a href="#SFAuth-124"><span class="linenos">124</span></a>        <span class="n">proxy</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;_auto&quot;</span><span class="p">,</span>
 </span><span id="SFAuth-125"><a href="#SFAuth-125"><span class="linenos">125</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
@@ -1977,7 +1335,7 @@ x-sfdc-addinfo-another_header: another_value
 </span><span id="SFAuth-190"><a href="#SFAuth-190"><span class="linenos">190</span></a>        <span class="p">)</span>
 </span><span id="SFAuth-191"><a href="#SFAuth-191"><span class="linenos">191</span></a>
 </span><span id="SFAuth-192"><a href="#SFAuth-192"><span class="linenos">192</span></a>        <span class="c1"># Store version information</span>
-</span><span id="SFAuth-193"><a href="#SFAuth-193"><span class="linenos">193</span></a>        <span class="bp">self</span><span class="o">.</span><span class="n">__version__</span> <span class="o">=</span> <span class="s2">&quot;0.0.56&quot;</span>
+</span><span id="SFAuth-193"><a href="#SFAuth-193"><span class="linenos">193</span></a>        <span class="bp">self</span><span class="o">.</span><span class="n">__version__</span> <span class="o">=</span> <span class="s2">&quot;0.0.57&quot;</span>
 </span><span id="SFAuth-194"><a href="#SFAuth-194"><span class="linenos">194</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="SFAuth-195"><a href="#SFAuth-195"><span class="linenos">195</span></a><span class="sd">        ### `__version__`</span>
 </span><span id="SFAuth-196"><a href="#SFAuth-196"><span class="linenos">196</span></a><span class="sd">        </span>
@@ -2549,7 +1907,7 @@ x-sfdc-addinfo-another_header: another_value
                                         <input id="SFAuth.__init__-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
 <div class="attr function">
             
-        <span class="name">SFAuth</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">instance_url</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">client_id</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">client_secret</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">refresh_token</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">api_version</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;v65.0&#39;</span>,</span><span class="param">	<span class="n">token_endpoint</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;/services/oauth2/token&#39;</span>,</span><span class="param">	<span class="n">access_token</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">token_expiration_time</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">token_lifetime</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">900</span>,</span><span class="param">	<span class="n">user_agent</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;sfq/0.0.56&#39;</span>,</span><span class="param">	<span class="n">sforce_client</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;_auto&#39;</span>,</span><span class="param">	<span class="n">proxy</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;_auto&#39;</span></span>)</span>
+        <span class="name">SFAuth</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">instance_url</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">client_id</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">client_secret</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">refresh_token</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">api_version</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;v65.0&#39;</span>,</span><span class="param">	<span class="n">token_endpoint</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;/services/oauth2/token&#39;</span>,</span><span class="param">	<span class="n">access_token</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">token_expiration_time</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">token_lifetime</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">900</span>,</span><span class="param">	<span class="n">user_agent</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;sfq/0.0.57&#39;</span>,</span><span class="param">	<span class="n">sforce_client</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;_auto&#39;</span>,</span><span class="param">	<span class="n">proxy</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;_auto&#39;</span></span>)</span>
 
                 <label class="view-source-button" for="SFAuth.__init__-view-source"><span>View Source</span></label>
 
@@ -2566,7 +1924,7 @@ x-sfdc-addinfo-another_header: another_value
 </span><span id="SFAuth.__init__-119"><a href="#SFAuth.__init__-119"><span class="linenos">119</span></a>        <span class="n">access_token</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="SFAuth.__init__-120"><a href="#SFAuth.__init__-120"><span class="linenos">120</span></a>        <span class="n">token_expiration_time</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="SFAuth.__init__-121"><a href="#SFAuth.__init__-121"><span class="linenos">121</span></a>        <span class="n">token_lifetime</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">15</span> <span class="o">*</span> <span class="mi">60</span><span class="p">,</span>
-</span><span id="SFAuth.__init__-122"><a href="#SFAuth.__init__-122"><span class="linenos">122</span></a>        <span class="n">user_agent</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;sfq/0.0.56&quot;</span><span class="p">,</span>
+</span><span id="SFAuth.__init__-122"><a href="#SFAuth.__init__-122"><span class="linenos">122</span></a>        <span class="n">user_agent</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;sfq/0.0.57&quot;</span><span class="p">,</span>
 </span><span id="SFAuth.__init__-123"><a href="#SFAuth.__init__-123"><span class="linenos">123</span></a>        <span class="n">sforce_client</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;_auto&quot;</span><span class="p">,</span>
 </span><span id="SFAuth.__init__-124"><a href="#SFAuth.__init__-124"><span class="linenos">124</span></a>        <span class="n">proxy</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;_auto&quot;</span><span class="p">,</span>
 </span><span id="SFAuth.__init__-125"><a href="#SFAuth.__init__-125"><span class="linenos">125</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
@@ -2637,7 +1995,7 @@ x-sfdc-addinfo-another_header: another_value
 </span><span id="SFAuth.__init__-190"><a href="#SFAuth.__init__-190"><span class="linenos">190</span></a>        <span class="p">)</span>
 </span><span id="SFAuth.__init__-191"><a href="#SFAuth.__init__-191"><span class="linenos">191</span></a>
 </span><span id="SFAuth.__init__-192"><a href="#SFAuth.__init__-192"><span class="linenos">192</span></a>        <span class="c1"># Store version information</span>
-</span><span id="SFAuth.__init__-193"><a href="#SFAuth.__init__-193"><span class="linenos">193</span></a>        <span class="bp">self</span><span class="o">.</span><span class="n">__version__</span> <span class="o">=</span> <span class="s2">&quot;0.0.56&quot;</span>
+</span><span id="SFAuth.__init__-193"><a href="#SFAuth.__init__-193"><span class="linenos">193</span></a>        <span class="bp">self</span><span class="o">.</span><span class="n">__version__</span> <span class="o">=</span> <span class="s2">&quot;0.0.57&quot;</span>
 </span><span id="SFAuth.__init__-194"><a href="#SFAuth.__init__-194"><span class="linenos">194</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="SFAuth.__init__-195"><a href="#SFAuth.__init__-195"><span class="linenos">195</span></a><span class="sd">        ### `__version__`</span>
 </span><span id="SFAuth.__init__-196"><a href="#SFAuth.__init__-196"><span class="linenos">196</span></a><span class="sd">        </span>
@@ -4199,7 +3557,7 @@ that is wired to this SFAuth instance.</p>
                 <section id="__version__">
                     <div class="attr variable">
             <span class="name">__version__</span>        =
-<span class="default_value">&#39;0.0.56&#39;</span>
+<span class="default_value">&#39;0.0.57&#39;</span>
 
         
     </div>
