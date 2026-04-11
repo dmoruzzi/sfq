@@ -8,6 +8,7 @@ from urllib.parse import quote
 
 # Import new modular components
 from .auth import AuthManager
+from .bulk_client import BulkAPIV2Client
 from .crud import CRUDClient
 
 # Import platform events support
@@ -184,6 +185,12 @@ class SFAuth:
 
         # Initialize the PlatformEventsClient
         self._platform_events_client = PlatformEventsClient(
+            http_client=self._http_client,
+            api_version=api_version,
+        )
+
+        # Initialize the BulkAPIV2Client
+        self._bulk_client = BulkAPIV2Client(
             http_client=self._http_client,
             api_version=api_version,
         )
@@ -534,6 +541,36 @@ class SFAuth:
         :return: Combined JSON response from all batches or None on complete failure.
         """
         return self._crud_client.cdelete(ids, batch_size, max_workers)
+
+    def bulkapiv2_delete(
+        self,
+        sobject: str,
+        ids: Iterable[str],
+        batch_size: int = 10000,
+        poll_interval_seconds: float = 5.0,
+        max_poll_seconds: float = 300.0,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Delete multiple records using the Bulk API v2.
+
+        This method creates bulk delete jobs to process large numbers of records
+        asynchronously. It handles batching automatically and polls for job completion.
+
+        :param sobject: The sObject API name (e.g., 'Nebula__Log__c').
+        :param ids: An iterable of record IDs to delete.
+        :param batch_size: Number of IDs per bulk job (default 10000, max 10000 per job).
+        :param poll_interval_seconds: Seconds between job status polls.
+        :param max_poll_seconds: Maximum time to wait for all jobs to complete.
+        :return: Dict with batch count and results, or None on failure.
+        """
+        self._refresh_token_if_needed()
+        return self._bulk_client.delete(
+            sobject=sobject,
+            ids=ids,
+            batch_size=batch_size,
+            poll_interval_seconds=poll_interval_seconds,
+            max_poll_seconds=max_poll_seconds,
+        )
 
     def _cupdate(
         self,
